@@ -4,6 +4,30 @@
 # https://doc.cgal.org/latest/Generalized_map/index.html
 # and adapts code from CGAL too
 
+def group_by_cell(l, i, dim=None):
+    '''groups iterator l into i-cells (in dim)'''
+    seen = set()
+    for dart in l:
+        if dart in seen:
+            continue
+        cell = []
+        for n in dart.cell(i, dim):
+            cell.append(n)
+            seen.add(n)
+        yield cell
+
+def unique_by_cell(l, i, dim=None):
+    '''
+    filters iterator l down to one dart per i-cell, considered in dimension dim
+    '''
+    seen = set()
+    for dart in l:
+        if dart in seen:
+            continue
+        yield dart
+        for n in dart.cell(i, dim):
+            seen.add(n)
+
 class Dart:
     def __init__(self, dimension):
         self.alpha = [self] * (dimension + 1)
@@ -18,20 +42,20 @@ class Dart:
 
         alphas: a repeatable iterable of alpha indices
         '''
-        seen = {self}
+        seen = set()
         frontier = [((), self)]
         while frontier:
             (path, dart) = frontier.pop(0)
+            if dart in seen:
+                continue
+            seen.add(dart)
             yield (path, dart)
             for i in alphas:
                 neighbor = dart.alpha[i]
-                if neighbor in seen:
-                    continue
-                seen.add(dart)
                 frontier.append((path + (i,), neighbor))
 
     def orbit(self, alphas):
-        return (dart for _, dart in self.orbit(alphas))
+        return (dart for _, dart in self.orbit_paths(alphas))
 
     def cell_paths(self, i, dim=None):
         '''
@@ -41,21 +65,21 @@ class Dart:
         (default to the overall dimension of the map)
         '''
         if dim is None:
-            dim = len(self.alphas) - 1
+            dim = len(self.alpha) - 1
         alphas = list(j for j in range(dim + 1) if j != i)
-        return self.orbit(alphas)
+        return self.orbit_paths(alphas)
 
     def cell(self, i, dim=None):
-        return (dart for _, dart in self.cell(i, dim))
+        return (dart for _, dart in self.cell_paths(i, dim))
 
     def _link(self, i, other):
-        if !self.is_free(i):
+        if not self.is_free(i):
             raise ValueError('not free')
         self.alpha[i] = other
         other.alpha[i] = self
 
     def _unlink(self, i):
-        if !self.is_free(i):
+        if self.is_free(i):
             raise ValueError('already free')
         other = self.alpha[i]
         other.alpha[i] = other
@@ -66,7 +90,7 @@ class Dart:
         return self.alpha[i] == self
 
     def sew(self, i, other):
-        alphas = list(j for j in range(len(self.alphas))
+        alphas = list(j for j in range(len(self.alpha))
                       if abs(j - i) > 1)
         m1 = dict(self.orbit_paths(alphas))
         m2 = dict(other.orbit_paths(alphas))
@@ -78,15 +102,21 @@ class Dart:
 
     def unsew(self, i):
         other = self.alpha[i]
-        alphas = list(j for j in range(len(self.alphas))
+        alphas = list(j for j in range(len(self.alpha))
                       if abs(j - i) > 1)
         for d in self.orbit(alphas):
             d._unlink(i)
         return other
 
+    def one_dart_per_incident_cell(self, i, j, dim=None):
+        '''
+        one dart per i-cell (in dim) incident to self's j-cell (in dim)
+        '''
+        return unique_by_cell(self.cell(j, dim), i, dim)
+
 
 class GMap:
-    def __init__(self, dimension, darts):
+    def __init__(self, dimension, darts=()):
         '''
         dimension: dimension of each dart
         darts: iterable of darts
@@ -123,11 +153,19 @@ class GMap:
         return d
 
     def make_polygon(self, n):
-        start = make_edge()
+        start = self.make_edge()
         prev = start.alpha[0]
         for _ in range(n - 1):
-            c = make_edge()
+            c = self.make_edge()
             c._link(1, prev)
             prev = c.alpha[0]
         start._link(1, prev)
-        return d
+        return start
+
+    def one_dart_per_cell(self, i, dim=None):
+        '''one dart per i-cell (in dim)'''
+        return unique_by_cell(self.darts, i, dim)
+
+    def all_cells(self, i, dim=None):
+        '''darts grouped by i-cell (in dim)'''
+        return group_by_cell(self.darts, i, dim)
