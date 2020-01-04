@@ -29,8 +29,15 @@ def unique_by_cell(l, i, dim=None):
             seen.add(n)
 
 class Dart:
-    def __init__(self, dimension):
+    def __init__(self, dimension, number):
         self.alpha = [self] * (dimension + 1)
+        self.number = number # for debugging
+
+    def al(self, *ii):
+        d = self
+        for i in ii:
+            d = d.alpha[i]
+        return d
 
     def orbit_paths(self, alphas):
         '''
@@ -114,6 +121,12 @@ class Dart:
         '''
         return unique_by_cell(self.cell(j, dim), i, dim)
 
+    def __str__(self):
+        return '{:3}'.format(self.number)
+
+    def __repr__(self):
+        return 'Dart({})'.format(self.number)
+
 
 class GMap:
     def __init__(self, dimension, darts=()):
@@ -143,7 +156,7 @@ class GMap:
                                          .format(i, j))
 
     def create_dart(self):
-        d = Dart(self.dimension)
+        d = Dart(self.dimension, len(self.darts))
         self.darts.add(d)
         return d
 
@@ -161,6 +174,39 @@ class GMap:
             prev = c.alpha[0]
         start._link(1, prev)
         return start
+
+    def make_tetrahedron(self):
+        d0 = self.make_polygon(3)
+        d1 = self.make_polygon(3)
+        d2 = self.make_polygon(3)
+        d3 = self.make_polygon(3)
+
+        d0.sew(2, d1)
+        d0.al(0, 1).sew(2, d2)
+        d0.al(1, 0).sew(2, d3)
+
+        d1.al(0, 1).sew(2, d2.al(1))
+        d2.al(0, 1).sew(2, d3.al(1))
+        d3.al(0, 1).sew(2, d1.al(1))
+        return d0
+
+    def make_cube(self):
+        bottom = self.make_polygon(4)
+        top = self.make_polygon(4)
+        sides = [self.make_polygon(4) for _ in range(4)]
+        b = bottom
+        t = top
+
+        for s in sides:
+            bottom.sew(2, s)
+            bottom = bottom.al(0, 1)
+            top.sew(2, s.al(1, 0, 1))
+            top = top.al(0, 1)
+
+        for (s0, s1) in zip(sides, sides[1:] + [sides[0]]):
+            s0.al(0, 1).sew(2, s1.al(1))
+
+        return bottom
 
     def one_dart_per_cell(self, i, dim=None):
         '''one dart per i-cell (in dim)'''
