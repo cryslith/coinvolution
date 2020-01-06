@@ -4,6 +4,8 @@
 # https://doc.cgal.org/latest/Generalized_map/index.html
 # and adapts code from CGAL too
 
+from collections.abc import MutableMapping
+
 def group_by_cell(l, i, dim=None):
     '''groups iterator l into i-cells (in dim)'''
     seen = set()
@@ -97,22 +99,32 @@ class Dart:
         return self.alpha[i] == self
 
     def sew(self, i, other):
+        '''
+        sew self's i-cell along other's i-cell.
+        returns list of pairs of darts sewn
+        '''
         alphas = list(j for j in range(len(self.alpha))
                       if abs(j - i) > 1)
         m1 = dict(self.orbit_paths(alphas))
         m2 = dict(other.orbit_paths(alphas))
         if m1.keys() != m2.keys():
             raise ValueError('unsewable')
+        output = []
         for (k, d1) in m1.items():
             d2 = m2[k]
             d1._link(i, d2)
+            output.append((d1, d2))
+        return output
 
     def unsew(self, i):
+        '''returns list of pairs of darts unsewn'''
         other = self.alpha[i]
         alphas = list(j for j in range(len(self.alpha))
                       if abs(j - i) > 1)
-        for d in self.orbit(alphas):
-            d._unlink(i)
+        output = []
+        for d1 in self.orbit(alphas):
+            d2 = d1._unlink(i)
+            output.append((d1, d2))
         return other
 
     def one_dart_per_incident_cell(self, i, j, dim=None):
@@ -215,3 +227,70 @@ class GMap:
     def all_cells(self, i, dim=None):
         '''darts grouped by i-cell (in dim)'''
         return group_by_cell(self.darts, i, dim)
+
+class Grid(GMap):
+    '''
+    n * m grid.  n rows, m columns.
+    rows increase from north to south,
+    columns increase from west to east
+    '''
+    def __init__(self, n, m):
+        super().__init__(2)
+        rows = []
+        for _ in range(n):
+            row = []
+            for _ in range(m):
+                row.append(self.make_polygon(4))
+            for s0, s1 in zip(row, row[1:]):
+                s0.al(0, 1).sew(2, s1.al(1))
+            rows.append(row)
+        for r0, r1 in zip(rows, rows[1:]):
+            for s0, s1 in zip(r0, r1):
+                s0.al(1, 0, 1).sew(2, s1)
+        # Each square is the dart on the square's north edge, northwest vertex
+        self.squares = rows
+
+class CellDict(MutableMapping):
+    # dict out of i-cells in dim
+    def __init__(self, i, dim=None):
+        self.darts = {}
+        self.i = i
+        self.dim = dim
+
+    def __getitem__(self, dart):
+        return self.darts[dart]
+
+    def __setitem__(self, dart, value):
+        for d in dart.cell(self.i, self.dim):
+            self.darts[d] = value
+
+    def __delitem__(self, dart):
+        for d in dart.cell(self.i, self.dim):
+            del self.darts[d]
+
+    def __iter__(self):
+        return unique_by_cell(self.darts, self.i, self.dim)
+
+    def __len__(self):
+        return len(list(self))
+
+    def resolve_sew(self, sew_list, merge=None):
+        '''
+        fix up the mapping to account for a sewing.
+        sew_list is a list of darts sewn.
+        merge function is used to merge pairs of values if both are present
+        (default is take left)
+        '''
+        if merge is None:
+            merge = lambda x, _: x
+        for (d1, d2) in sew_list:
+            if d1 in self.darts:
+                if d2 in self.darts:
+                    v = merge(self.darts[d1], self.darts[d2])
+                    self.darts[d1] = v
+                    self.darts[d2] = v
+                else:
+                    self.darts[d2] = self.darts[d1]
+            else:
+                if d2 in self.darts:
+                    self.darts[d1] = self.darts[d2]
