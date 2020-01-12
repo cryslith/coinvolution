@@ -1,14 +1,17 @@
 import {Dart, GMap, CellMap} from "./gmap.js";
 import {deser_gmap, deser_cellmap} from "./ser.js";
 
-const WIDTH = 1000, HEIGHT = 1000;
-const SCALE = 40;
-const OFFSET = 50;
+const WIDTH = 1000, HEIGHT = 500;
 
 SVG.on(document, 'DOMContentLoaded', () => {
-  const draw = SVG().addTo('body').size(WIDTH, HEIGHT);
+  const draw = SVG('#draw').size(WIDTH, HEIGHT);
+  const puzzle = draw.group().scale(40).translate(50, 50);
 
-  example_gmap(draw);
+  const grid = example_grid(puzzle);
+  for (const [i, b] of ['vbutton', 'ebutton', 'fbutton'].entries()) {
+    const button = document.getElementById(b);
+    SVG.on(button, 'click', () => grid.setActive(i));
+  }
 });
 
 class Cell {
@@ -42,21 +45,22 @@ class Cell {
 
   update() {
     if (this.active) {
-      this.elem.css('pointer-events', '');
+      this.elem.css('pointer-events', 'fill');
     } else {
       this.elem.css('pointer-events', 'none');
     }
   }
 
-  color(baseColor, change) {
+  color(baseColor, changeDown, changeUp) {
+    if (changeUp === undefined) {
+      changeUp = 2 * changeDown;
+    }
     let c = new SVG.Color(baseColor).hsl();
     if (this.hovered) {
-      if (c.l > 0x80) {
-        c.l -= change;
-      } else if (c.l > 0x80) {
-        c.l += change;
+      if (c.l >= 50) {
+        c.l -= changeDown;
       } else {
-        c.l += change;
+        c.l += changeUp;
       }
     }
     return c;
@@ -64,22 +68,28 @@ class Cell {
 }
 
 class Vertex extends Cell {
-  constructor(svg, position) {
+  constructor(svg, position, bounds) {
     super(svg);
     this.position = position;
+    this.bounds = bounds;
     this.update();
   }
 
   createElem(svg) {
-    return svg.circle();
+    const g = svg.group();
+    this.circle = g.circle();
+    this.cover = g.polygon();
+    return g;
   }
 
   update() {
     super.update();
-    this.elem
-      .size(4)
+    this.circle
+      .size(1/10)
       .center(...this.position)
-      .fill({color: this.color("#222", 0x20)});
+      .fill({color: this.color("#222", 25)});
+    this.cover.plot(this.bounds)
+      .fill('none');
   }
 }
 
@@ -93,19 +103,24 @@ class Edge extends Cell {
   }
 
   createElem(svg) {
-    return svg.line();
+    const g = svg.group();
+    this.line = g.line();
+    this.cover = g.polygon();
+    return g;
   }
 
   update() {
     super.update();
-    this.elem
+    this.line
       .attr({
         x1: this.ends[0][0],
         y1: this.ends[0][1],
         x2: this.ends[1][0],
         y2: this.ends[1][1],
       })
-      .stroke({color: this.color('#222', 0x10), width: 2});
+      .stroke({color: this.color('#222', 25), width: 1/20});
+    this.cover.plot(this.bounds)
+      .fill('none');
   }
 }
 
@@ -157,8 +172,89 @@ function* imap(f, l) {
   }
 }
 
+class GridDisplay {
+  constructor(svg, n, m) {
+    this.n = n;
+    this.m = m;
+
+    const vertgroup = svg.group();
+    const edgegroup = svg.group().insertBefore(vertgroup);
+    const facegroup = svg.group().insertBefore(edgegroup);
+
+    const vertices = [];
+    const edges = [];
+    const faces = [];
+
+    for (let i = 0; i < n; i++) {
+      const row = [];
+      for (let j = 0; j < m; j++) {
+        const f = new Face(
+          facegroup,
+          [[j, i], [j + 1, i], [j + 1, i + 1], [j, i + 1]],
+          [j + 1/2, i + 1/2],
+        );
+        row.push(f);
+      }
+      faces.push(row);
+    }
+
+    for (let i = 0; i <= n; i++) {
+      const row = [];
+      for (let j = 0; j < m; j++) {
+        const e = new Edge(
+          edgegroup,
+          [[j, i], [j + 1, i]],
+          [[j, i], [j + 1/2, i - 1/2], [j + 1, i], [j + 1/2, i + 1/2]],
+          [j + 1/2, i],
+        );
+        row.push(e);
+      }
+      edges.push(row);
+    }
+
+    for (let i = 0; i < n; i++) {
+      const row = [];
+      for (let j = 0; j <= m; j++) {
+        const e = new Edge(
+          edgegroup,
+          [[j, i], [j, i + 1]],
+          [[j, i], [j + 1/2, i + 1/2], [j, i + 1], [j - 1/2, i + 1/2]],
+          [j, i + 1/2],
+        );
+        row.push(e);
+      }
+      edges.push(row);
+    }
+
+    for (let i = 0; i <= n; i++) {
+      const row = [];
+      for (let j = 0; j <= m; j++) {
+        const v = new Vertex(
+          vertgroup,
+          [j, i],
+          [[j - 1/2, i - 1/2], [j + 1/2, i - 1/2], [j + 1/2, i + 1/2], [j - 1/2, i + 1/2]],
+        );
+        row.push(v);
+      }
+      vertices.push(row);
+    }
+
+    this.cells = [vertices, edges, faces];
+    this.cellgroups = [vertgroup, edgegroup, facegroup];
+  }
+
+  setActive(i) {
+    for (const [j, cs] of this.cells.entries()) {
+      for (const c of cs.flat()) {
+        c.setActive(i == j);
+      }
+    }
+  }
+}
+
 class GMapDisplay {
   constructor(svg, gmap, vertex_positions) {
+    // TODO need to implement bounds, setActive - see GridDisplay
     this.gmap = gmap;
     this.vertex_positions = vertex_positions;
     this.vertgroup = svg.group();
@@ -179,7 +275,6 @@ class GMapDisplay {
         points,
         center,
       );
-      f.setActive(true);
       this.faces.set(face, f);
     }
 
@@ -214,5 +309,9 @@ async function example_gmap(svg) {
   const gmap = deser_gmap(example_grid);
   const vertex_positions = deser_cellmap(gmap, example_grid["vertex_positions"], x => x.map(y => y * SCALE + OFFSET));
 
-  new GMapDisplay(svg, gmap, vertex_positions);
+  return new GMapDisplay(svg, gmap, vertex_positions);
+}
+
+function example_grid(svg) {
+  return new GridDisplay(svg, 10, 20);
 }
