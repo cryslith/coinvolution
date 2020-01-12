@@ -33,7 +33,7 @@ def unique_by_cell(l, i, dim=None):
 class Dart:
     def __init__(self, dimension, number):
         self.alpha = [self] * (dimension + 1)
-        self.number = number # for debugging
+        self.number = number
 
     def al(self, *ii):
         d = self
@@ -147,7 +147,7 @@ class GMap:
         darts: iterable of darts
         '''
         self.dimension = dimension
-        self.darts = set(darts)
+        self.darts = list(darts)
 
     def check_validity(self):
         for dart in self.darts:
@@ -169,7 +169,7 @@ class GMap:
 
     def create_dart(self):
         d = Dart(self.dimension, len(self.darts))
-        self.darts.add(d)
+        self.darts.append(d)
         return d
 
     def make_edge(self):
@@ -228,6 +228,11 @@ class GMap:
         '''darts grouped by i-cell (in dim)'''
         return group_by_cell(self.darts, i, dim)
 
+    def serialize(self):
+        darts = [[n.number for n in d.alpha] for d in self.darts]
+        return {'dimension': self.dimension, 'darts': darts}
+
+
 class Grid(GMap):
     '''
     n * m grid.  n rows, m columns.
@@ -249,6 +254,29 @@ class Grid(GMap):
                 s0.al(1, 0, 1).sew(2, s1)
         # Each square is the dart on the square's north edge, northwest vertex
         self.squares = rows
+
+    def vertex_grid(self):
+        vrows = []
+        for row in self.squares:
+            vrow = []
+            for d in row:
+                vrow.append(d)
+            vrow.append(d.al(0))
+            vrows.append(vrow)
+        lastvrow = []
+        for d in row:
+            lastvrow.append(d.al(1, 0, 1))
+        lastvrow.append(d.al(1, 0, 1, 0))
+        vrows.append(lastvrow)
+        return vrows
+
+    def vertex_positions(self):
+        pos = CellDict(0)
+        for i, row in enumerate(self.vertex_grid()):
+            for j, d in enumerate(row):
+                pos[d] = (j, i)
+        return pos
+
 
 class CellDict(MutableMapping):
     # dict out of i-cells in dim
@@ -294,3 +322,7 @@ class CellDict(MutableMapping):
             else:
                 if d2 in self.darts:
                     self.darts[d1] = self.darts[d2]
+
+    def serialize(self):
+        darts = {d.number: v for d, v in self.darts.items()}
+        return {'i': self.i, 'dim': self.dim, 'darts': darts}

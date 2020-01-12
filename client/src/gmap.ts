@@ -33,7 +33,7 @@ export class Dart {
   public number: number;
 
   constructor(dimension: number, number: number) {
-    this.alpha = Array.from({length: dimension}, _ => this);
+    this.alpha = Array.from({length: dimension + 1}, _ => this);
     this.number = number;
   }
 
@@ -89,11 +89,15 @@ export class Dart {
 
 export class GMap {
   public dimension: number;
-  public darts: Set<Dart>;
+  public darts: Dart[];
 
   constructor(dimension: number, darts?: Dart[]) {
     this.dimension = dimension;
-    this.darts = new Set(darts);
+    if (darts === undefined) {
+      this.darts = [];
+    } else {
+      this.darts = [...darts];
+    }
   }
 
   one_dart_per_cell(i: number, dim?: number) {

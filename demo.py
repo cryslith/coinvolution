@@ -3,6 +3,7 @@
 from inspect import cleandoc
 from gmap import GMap, Grid, CellDict
 import sys
+import json
 
 def dump(gmap):
     output = []
@@ -31,10 +32,11 @@ def graphvizify(gmap):
                        }}''').format('\n'.join(output))
 
 def demo_gmap():
-    g = Grid(3, 4)
-    g.make_cube()
+    g = Grid(20, 20)
     g.check_validity()
-    print(graphvizify(g))
+    output = g.serialize()
+    output['vertex_positions'] = g.vertex_positions().serialize()
+    print(json.dumps(output))
 
 if __name__ == '__main__':
     demo_gmap()
