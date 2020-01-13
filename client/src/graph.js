@@ -1,3 +1,6 @@
+export const BACKGROUND = '#ececed';
+export const FOREGROUND = '#212020';
+
 export class Cell {
   constructor(svg) {
     this.puzzleState = {};
@@ -65,7 +68,6 @@ export class Vertex extends Cell {
     super(svg);
     this.position = position;
     this.bounds = bounds;
-    this.update();
   }
 
   createElem(svg) {
@@ -86,7 +88,7 @@ export class Vertex extends Cell {
   }
 
   color() {
-    return '#222';
+    return FOREGROUND;
   }
 
   radius() {
@@ -100,7 +102,6 @@ export class Edge extends Cell {
     this.ends = ends;
     this.bounds = bounds;
     this.center = center;
-    this.update();
   }
 
   createElem(svg) {
@@ -119,13 +120,14 @@ export class Edge extends Cell {
         x2: this.ends[1][0],
         y2: this.ends[1][1],
       })
-      .stroke({color: this.hoverColor(this.color(), 25), width: this.width()});
+      .stroke({color: this.hoverColor(this.color(), 25),
+               width: this.width()});
     this.cover.plot(this.bounds)
       .fill('none');
   }
 
   color() {
-    return '#222';
+    return FOREGROUND;
   }
 
   width() {
@@ -138,7 +140,6 @@ export class Face extends Cell {
     super(svg);
     this.points = points;
     this.center = center;
-    this.update();
   }
 
   createElem(svg) {
@@ -153,6 +154,6 @@ export class Face extends Cell {
   }
 
   color() {
-    return '#ececec';
+    return BACKGROUND;
   }
 }

@@ -1,7 +1,8 @@
-import {Vertex, Edge, Face} from "./graph.js";
+import {Vertex, Edge, Face, FOREGROUND, BACKGROUND} from "./graph.js";
+import {ColorEdge} from "./coloring.js";
 
 export class GridDisplay {
-  constructor(svg, n, m) {
+  constructor(svg, n, m, mkVertex, mkEdge, mkFace) {
     this.n = n;
     this.m = m;
 
@@ -16,11 +17,12 @@ export class GridDisplay {
     for (let i = 0; i < n; i++) {
       const row = [];
       for (let j = 0; j < m; j++) {
-        const f = new Face(
+        const f = mkFace(
           facegroup,
           [[j, i], [j + 1, i], [j + 1, i + 1], [j, i + 1]],
           [j + 1/2, i + 1/2],
         );
+        f.update();
         row.push(f);
       }
       faces.push(row);
@@ -29,12 +31,13 @@ export class GridDisplay {
     for (let i = 0; i <= n; i++) {
       const row = [];
       for (let j = 0; j < m; j++) {
-        const e = new Edge(
+        const e = mkEdge(
           edgegroup,
           [[j, i], [j + 1, i]],
           [[j, i], [j + 1/2, i - 1/2], [j + 1, i], [j + 1/2, i + 1/2]],
           [j + 1/2, i],
         );
+        e.update();
         row.push(e);
       }
       edges.push(row);
@@ -43,12 +46,13 @@ export class GridDisplay {
     for (let i = 0; i < n; i++) {
       const row = [];
       for (let j = 0; j <= m; j++) {
-        const e = new Edge(
+        const e = mkEdge(
           edgegroup,
           [[j, i], [j, i + 1]],
           [[j, i], [j + 1/2, i + 1/2], [j, i + 1], [j - 1/2, i + 1/2]],
           [j, i + 1/2],
         );
+        e.update();
         row.push(e);
       }
       edges.push(row);
@@ -57,11 +61,12 @@ export class GridDisplay {
     for (let i = 0; i <= n; i++) {
       const row = [];
       for (let j = 0; j <= m; j++) {
-        const v = new Vertex(
+        const v = mkVertex(
           vertgroup,
           [j, i],
           [[j - 1/2, i - 1/2], [j + 1/2, i - 1/2], [j + 1/2, i + 1/2], [j - 1/2, i + 1/2]],
         );
+        v.update();
         row.push(v);
       }
       vertices.push(row);
@@ -81,5 +86,11 @@ export class GridDisplay {
 }
 
 export function example_grid(svg) {
-  return new GridDisplay(svg, 10, 20);
+  function mkColorEdge(svg, ends, bounds, center) {
+    return new ColorEdge(svg, ends, bounds, center,
+                         new Map([['on', FOREGROUND],
+                                  ['off', BACKGROUND],
+                                  [undefined, '#00f']]));
+  }
+  return new GridDisplay(svg, 10, 20, (...args) => new Vertex(...args), mkColorEdge, (...args) => new Face(...args));
 }
