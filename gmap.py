@@ -78,7 +78,7 @@ class Dart:
         if d is None:
             return alphas
         else:
-            return list(itertools.chain(alphas, range(d, self.dimension + 1)))
+            return list(itertools.chain(alphas, range(d, len(self.alpha))))
 
     def orbit_paths(self, a):
         '''
@@ -130,8 +130,7 @@ class Dart:
         sew self's i-cell along other's i-cell.
         returns list of pairs of darts sewn
         '''
-        alphas = list(j for j in range(len(self.alpha))
-                      if abs(j - i) > 1)
+        alphas = ([j for j in range(len(self.alpha)) if abs(j - i) > 1], None)
         m1 = dict(self.orbit_paths(alphas))
         m2 = dict(other.orbit_paths(alphas))
         if m1.keys() != m2.keys():
@@ -146,8 +145,7 @@ class Dart:
     def unsew(self, i):
         '''returns list of pairs of darts unsewn'''
         other = self.alpha[i]
-        alphas = list(j for j in range(len(self.alpha))
-                      if abs(j - i) > 1)
+        alphas = ([j for j in range(len(self.alpha)) if abs(j - i) > 1], None)
         output = []
         for d1 in self.orbit(alphas):
             d2 = d1._unlink(i)
@@ -332,7 +330,7 @@ class OrbitDict(MutableMapping):
     @classmethod
     def over_cells(cls, i, dim=None):
         '''Dictionary over i-cells in dim'''
-        cls(cell_alphas(i, dim))
+        return cls(cell_alphas(i, dim))
 
     def __getitem__(self, dart):
         return self.darts[dart]
