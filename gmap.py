@@ -57,6 +57,11 @@ class Dart:
         self.alpha = [self] * (dimension + 1)
         self.number = number
 
+    def increase_dimension(self, dim):
+        if dim < len(self.alpha) - 1:
+            raise ValueError('cannot lower dimension')
+        self.alpha.extend([self] * (dim - (len(self.alpha) - 1)))
+
     def al(self, *ii):
         d = self
         for i in ii:
@@ -181,6 +186,13 @@ class GMap:
         '''
         self.dimension = dimension
         self.darts = list(darts)
+
+    def increase_dimension(self, dim):
+        if dim < self.dimension:
+            raise ValueError('cannot lower dimension')
+        self.dimension = dim
+        for d in self.darts:
+            d.increase_dimension(dim)
 
     def check_validity(self):
         for dart in self.darts:
