@@ -5,30 +5,52 @@
 # and adapts code from CGAL too
 
 from collections.abc import MutableMapping
+import itertools
 
-def group_by_cell(l, i, dim=None):
-    '''groups iterator l into i-cells (in dim)'''
+
+# An alpha-list a is a tuple (alphas, d) where 
+# alphas is a repeatable iterable of alpha indices.
+# If d is not None, implicitly include all higher indices starting at d.
+
+
+def group_by_orbit(l, a):
+    '''
+    groups iterator l into a-orbits
+
+    a: alpha-list
+    '''
     seen = set()
     for dart in l:
         if dart in seen:
             continue
         cell = []
-        for n in dart.cell(i, dim):
+        for n in dart.orbit(a):
             cell.append(n)
             seen.add(n)
         yield cell
 
-def unique_by_cell(l, i, dim=None):
+
+def unique_by_orbit(l, a):
     '''
-    filters iterator l down to one dart per i-cell, considered in dimension dim
+    filters iterator l down to one dart per a-orbit
+
+    a: alpha-list
     '''
     seen = set()
     for dart in l:
         if dart in seen:
             continue
         yield dart
-        for n in dart.cell(i, dim):
+        for n in dart.orbit(a):
             seen.add(n)
+
+
+def cell_alphas(i, dim=None):    
+    if dim is None:
+        return (list(range(i)), i + 1)
+    else:
+        return ([j for j in range(dim + 1) if j != i], None)
+
 
 class Dart:
     def __init__(self, dimension, number):
@@ -41,15 +63,27 @@ class Dart:
             d = d.alpha[i]
         return d
 
-    def orbit_paths(self, alphas):
+    def _alphas(self, a):
         '''
-        iterator over the orbit of a dart under alphas.
+        list of actual alpha values
+
+        a: alpha-list
+        '''
+        (alphas, d) = a
+        if d is None:
+            return alphas
+        else:
+            return list(itertools.chain(alphas, range(d, self.dimension + 1)))
+
+    def orbit_paths(self, a):
+        '''
+        iterator over the orbit of self under a.
         returns iterator of ([alpha_indices], dart)
         where alpha_indices is the path of alpha indices
         from self to the new dart.
         always includes ((), self).
 
-        alphas: a repeatable iterable of alpha indices
+        a: alpha-list
         '''
         seen = set()
         frontier = [((), self)]
@@ -59,27 +93,15 @@ class Dart:
                 continue
             seen.add(dart)
             yield (path, dart)
-            for i in alphas:
+            for i in self._alphas(a):
                 neighbor = dart.alpha[i]
                 frontier.append((path + (i,), neighbor))
 
     def orbit(self, alphas):
         return (dart for _, dart in self.orbit_paths(alphas))
 
-    def cell_paths(self, i, dim=None):
-        '''
-        iterator over all darts in the same i-cell as this one.
-        same return type as orbit_indices.
-        the cell is considered in dimension dim
-        (default to the overall dimension of the map)
-        '''
-        if dim is None:
-            dim = len(self.alpha) - 1
-        alphas = list(j for j in range(dim + 1) if j != i)
-        return self.orbit_paths(alphas)
-
     def cell(self, i, dim=None):
-        return (dart for _, dart in self.cell_paths(i, dim))
+        return self.orbit(cell_alphas(i, dim))
 
     def _link(self, i, other):
         if not self.is_free(i):
@@ -127,18 +149,28 @@ class Dart:
             output.append((d1, d2))
         return other
 
+    def one_dart_per_incident_orbit(self, a, b):
+        '''
+        one dart per a-orbit incident to self's b-orbit.
+        darts are guaranteed to be in both orbits.
+
+        a, b: alpha-list
+        '''
+        return unique_by_orbit(self.orbit(b), a)
+
+
     def one_dart_per_incident_cell(self, i, j, dim=None):
         '''
         one dart per i-cell (in dim) incident to self's j-cell (in dim).
-        darts are guaranteed to be in self's j-cell.
+        darts are guaranteed to be in both cells.
         '''
-        return unique_by_cell(self.cell(j, dim), i, dim)
+        return self.one_dart_per_incident_orbit(cell_alphas(i, dim), cell_alphas(j, dim))
 
     def __str__(self):
         return '{:3}'.format(self.number)
 
     def __repr__(self):
-        return 'Dart({})'.format(self.number)
+        return 'Dart({}, {})'.format(self.number, [x.number for x in self.alpha])
 
 
 class GMap:
@@ -221,13 +253,12 @@ class GMap:
 
         return bottom
 
+    def one_dart_per_orbit(self, a):
+        return unique_by_orbit(self.darts, a)
+
     def one_dart_per_cell(self, i, dim=None):
         '''one dart per i-cell (in dim)'''
-        return unique_by_cell(self.darts, i, dim)
-
-    def all_cells(self, i, dim=None):
-        '''darts grouped by i-cell (in dim)'''
-        return group_by_cell(self.darts, i, dim)
+        return self.one_dart_per_orbit(cell_alphas(i, dim))
 
     def serialize(self):
         darts = [[n.number for n in d.alpha] for d in self.darts]
@@ -279,26 +310,31 @@ class Grid(GMap):
         return pos
 
 
-class CellDict(MutableMapping):
-    # dict out of i-cells in dim
-    def __init__(self, i, dim=None):
+class OrbitDict(MutableMapping):
+    '''Dictionary over generalized cells (orbits of alphas)'''
+
+    def __init__(self, a):
         self.darts = {}
-        self.i = i
-        self.dim = dim
+        self.a = a
+
+    @classmethod
+    def over_cells(cls, i, dim=None):
+        '''Dictionary over i-cells in dim'''
+        cls(cell_alphas(i, dim))
 
     def __getitem__(self, dart):
         return self.darts[dart]
 
     def __setitem__(self, dart, value):
-        for d in dart.cell(self.i, self.dim):
+        for d in dart.orbit(self.a):
             self.darts[d] = value
 
     def __delitem__(self, dart):
-        for d in dart.cell(self.i, self.dim):
+        for d in dart.orbit(self.a):
             del self.darts[d]
 
     def __iter__(self):
-        return unique_by_cell(self.darts, self.i, self.dim)
+        return unique_by_orbit(self.darts, self.a)
 
     def __len__(self):
         raise TypeError
@@ -326,4 +362,8 @@ class CellDict(MutableMapping):
 
     def serialize(self):
         darts = {d.number: v for d, v in self.darts.items()}
-        return {'i': self.i, 'dim': self.dim, 'darts': darts}
+        return {'alpha-list': self.a, 'darts': darts}
+
+
+def CellDict(i, dim=None):
+    return OrbitDict.over_cells(i, dim)
