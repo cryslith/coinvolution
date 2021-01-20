@@ -129,7 +129,8 @@ class Dart:
 
     def one_dart_per_incident_cell(self, i, j, dim=None):
         '''
-        one dart per i-cell (in dim) incident to self's j-cell (in dim)
+        one dart per i-cell (in dim) incident to self's j-cell (in dim).
+        darts are guaranteed to be in self's j-cell.
         '''
         return unique_by_cell(self.cell(j, dim), i, dim)
 
@@ -300,7 +301,7 @@ class CellDict(MutableMapping):
         return unique_by_cell(self.darts, self.i, self.dim)
 
     def __len__(self):
-        return len(list(self))
+        raise TypeError
 
     def resolve_sew(self, sew_list, merge=None):
         '''
