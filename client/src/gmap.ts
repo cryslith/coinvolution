@@ -1,30 +1,25 @@
 // Manually translated from gmap.py
 
-export function* group_by_cell(l: Iterable<Dart>, i: number, dim?: number) {
-  const seen = new Set();
-  for (const dart of l) {
-    if (seen.has(dart)) {
-      continue;
-    }
-    const cell = [];
-    for (const n of dart.cell(i, dim)) {
-      cell.push(n);
-      seen.add(n);
-    }
-    yield cell;
-  }
-}
+type alphalist = [number[], number?];
 
-export function* unique_by_cell(l: Iterable<Dart>, i: number, dim?: number) {
+export function* unique_by_orbit(l: Iterable<Dart>, a: alphalist) {
   const seen = new Set();
   for (const dart of l) {
     if (seen.has(dart)) {
       continue;
     }
     yield dart;
-    for (const n of dart.cell(i, dim)) {
+    for (const n of dart.orbit(a)) {
       seen.add(n);
     }
+  }
+}
+
+export function cell_alphas(i: number, dim?: number): alphalist {
+  if (dim === undefined) {
+    return [[...Array(i).keys()], i + 1];
+  } else {
+    return [[...Array(dim + 1).keys()].filter(j => j != i), undefined];
   }
 }
 
@@ -45,7 +40,16 @@ export class Dart {
     return d;
   }
 
-  *orbit_paths(alphas: number[]): IterableIterator<[number[], this]> {
+  _alphas(a: alphalist): number[] {
+    let [alphas, d] = a;
+    if (d === undefined) {
+      return alphas;
+    } else {
+      return [...alphas, ...[...Array(this.alpha.length - d).keys()].map(x => x + d!)];
+    }
+  }
+
+  *orbit_paths(a: alphalist): IterableIterator<[number[], this]> {
     const seen = new Set();
     const frontier: [number[], this][] = [[[], this]];
     while (frontier.length) {
@@ -55,35 +59,29 @@ export class Dart {
       }
       seen.add(dart);
       yield [path, dart];
-      for (const i of alphas) {
+      for (const i of this._alphas(a)) {
         const neighbor = dart.alpha[i];
         frontier.push([[...path, i], neighbor]);
       }
     }
   }
 
-  *orbit(alphas: number[]) {
-    for (const [_, dart] of this.orbit_paths(alphas)) {
+  *orbit(a: alphalist) {
+    for (const [_, dart] of this.orbit_paths(a)) {
       yield dart;
     }
   }
 
-  cell_paths(i: number, dim?: number) {
-    if (dim === undefined) {
-      dim = this.alpha.length - 1
-    }
-    const alphas = [...Array(dim + 1).keys()].filter(j => j != i);
-    return this.orbit_paths(alphas);
+  cell(i: number, dim?: number) {
+    return this.orbit(cell_alphas(i, dim));
   }
 
-  *cell(i: number, dim?: number) {
-    for (const [_, dart] of this.cell_paths(i, dim)) {
-      yield dart;
-    }
+  one_dart_per_incident_orbit(a: alphalist, b: alphalist) {
+    return unique_by_orbit(this.orbit(b), a);
   }
 
   one_dart_per_incident_cell(i: number, j: number, dim?: number) {
-    return unique_by_cell(this.cell(j, dim), i, dim);
+    return this.one_dart_per_incident_orbit(cell_alphas(i, dim), cell_alphas(j, dim));
   }
 }
 
@@ -100,24 +98,22 @@ export class GMap {
     }
   }
 
-  one_dart_per_cell(i: number, dim?: number) {
-    return unique_by_cell(this.darts, i, dim);
+  one_dart_per_orbit(a: alphalist) {
+    return unique_by_orbit(this.darts, a);
   }
 
-  all_cells(i: number, dim?: number) {
-    return group_by_cell(this.darts, i, dim);
+  one_dart_per_cell(i: number, dim?: number) {
+    return this.one_dart_per_orbit(cell_alphas(i, dim));
   }
 }
 
-export class CellMap<T> {
+export class OrbitMap<T> {
   private darts: Map<Dart, T>;
-  public i: number;
-  public dim?: number;
+  public a: alphalist;
 
-  constructor(i: number, dim?: number) {
+  constructor(a: alphalist) {
     this.darts = new Map();
-    this.i = i;
-    this.dim = dim;
+    this.a = a;
   }
 
   get(dart: Dart) {
@@ -125,14 +121,20 @@ export class CellMap<T> {
   }
 
   set(dart: Dart, value: T) {
-    for (const d of dart.cell(this.i, this.dim)) {
+    for (const d of dart.orbit(this.a)) {
       this.darts.set(d, value);
     }
   }
 
   delete(dart: Dart) {
-    for (const d of dart.cell(this.i, this.dim)) {
+    for (const d of dart.orbit(this.a)) {
       this.darts.delete(d);
     }
+  }
+}
+
+export class CellMap<T> extends OrbitMap<T> {
+  constructor(i: number, dim?: number) {
+    super(cell_alphas(i, dim));
   }
 }

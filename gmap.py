@@ -13,23 +13,6 @@ import itertools
 # If d is not None, implicitly include all higher indices starting at d.
 
 
-def group_by_orbit(l, a):
-    '''
-    groups iterator l into a-orbits
-
-    a: alpha-list
-    '''
-    seen = set()
-    for dart in l:
-        if dart in seen:
-            continue
-        cell = []
-        for n in dart.orbit(a):
-            cell.append(n)
-            seen.add(n)
-        yield cell
-
-
 def unique_by_orbit(l, a):
     '''
     filters iterator l down to one dart per a-orbit
