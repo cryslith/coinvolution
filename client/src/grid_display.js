@@ -1,5 +1,5 @@
 import {Vertex, Edge, Face, FOREGROUND, BACKGROUND} from "./graph.js";
-import {ColorEdge} from "./coloring.js";
+import {ColorVertex, ColorEdge, ColorFace} from "./coloring.js";
 
 export class GridDisplay {
   constructor(svg, n, m, mkVertex, mkEdge, mkFace) {
@@ -86,11 +86,24 @@ export class GridDisplay {
 }
 
 export function example_grid(svg) {
-  function mkColorEdge(svg, ends, bounds, center) {
-    return new ColorEdge(svg, ends, bounds, center,
+  function mkVertex(...args) {
+    return new ColorVertex(...args,
+                           new Map([['magenta', '#f0f'],
+                                    ['cyan', '#ff0'],
+                                    ['yellow', '#0ff'],
+                                    [undefined, undefined]]));
+  }
+  function mkEdge(...args) {
+    return new ColorEdge(...args,
                          new Map([['on', FOREGROUND],
                                   ['off', BACKGROUND],
                                   [undefined, '#00f']]));
   }
-  return new GridDisplay(svg, 10, 20, (...args) => new Vertex(...args), mkColorEdge, (...args) => new Face(...args));
+  function mkFace(...args) {
+    return new ColorFace(...args,
+                         new Map([['in', '#ed9c05'],
+                                  ['out', '#b1cbf0'],
+                                  [undefined, undefined]]));
+  }
+  return new GridDisplay(svg, 10, 20, mkVertex, mkEdge, mkFace);
 }

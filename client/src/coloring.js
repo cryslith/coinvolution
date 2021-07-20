@@ -50,7 +50,7 @@ export class ColorEdge extends Edge {
 
 export class ColorFace extends Face {
   constructor(svg, points, center, colorMap) {
-    super(svg, ends, points, center);
+    super(svg, points, center);
     this.colorMap = colorMap;
   }
 
