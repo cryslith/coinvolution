@@ -127,13 +127,12 @@ class Dart:
 
     def unsew(self, i):
         '''returns list of pairs of darts unsewn'''
-        other = self.alpha[i]
         alphas = ([j for j in range(len(self.alpha)) if abs(j - i) > 1], None)
         output = []
         for d1 in self.orbit(alphas):
             d2 = d1._unlink(i)
             output.append((d1, d2))
-        return other
+        return output
 
     def one_dart_per_incident_orbit(self, a, b):
         '''
