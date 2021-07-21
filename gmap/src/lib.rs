@@ -10,7 +10,7 @@ pub enum GMapError {
 }
 
 pub fn cell_alphas(i: usize, dim: usize) -> Vec<usize> {
-  (0..=dim).filter(|x| *x != i).collect()
+  (0..=dim).filter(|&x| x != i).collect()
 }
 
 pub struct GMap {
