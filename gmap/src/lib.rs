@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
@@ -27,6 +28,27 @@ impl GMap {
     let g = GMap { dimension, alpha };
     g.check_valid()?;
     Ok(g)
+  }
+
+  pub fn grid(n: usize, m: usize) -> (Self, Vec<Vec<usize>>) {
+    let mut g = Self::empty(2);
+    let rows: Vec<Vec<usize>> = (0..n)
+      .map(|_| (0..m).map(|_| g.add_polygon(4)).collect())
+      .collect();
+    // Each square is the dart on the square's north edge, northwest vertex
+    for r in &rows {
+      for (&s0, &s1) in r.iter().tuple_windows() {
+        g.sew(2, g.al(s0, [0, 1]), g.al(s1, [1])).unwrap();
+      }
+    }
+
+    for (r0, r1) in rows.iter().tuple_windows() {
+      for (&s0, &s1) in r0.iter().zip(r1.iter()) {
+        g.sew(2, g.al(s0, [1, 0, 1]), s1).unwrap();
+      }
+    }
+
+    (g, rows)
   }
 
   fn check_valid(&self) -> Result<(), GMapError> {
@@ -84,8 +106,8 @@ impl GMap {
     &self.alpha
   }
 
-  pub fn al(&self, d: usize, alphas: impl Iterator<Item = usize>) -> usize {
-    alphas.fold(d, |d, a| self.alpha[d][a])
+  pub fn al(&self, d: usize, alphas: impl IntoIterator<Item = usize>) -> usize {
+    alphas.into_iter().fold(d, |d, a| self.alpha[d][a])
   }
 
   pub fn increase_dimension(&mut self, dim: usize) -> Result<(), GMapError> {

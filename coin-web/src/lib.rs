@@ -1,5 +1,5 @@
 #[macro_use]
-mod utils;
+pub mod utils;
 
 use wasm_bindgen::prelude::*;
 
@@ -9,14 +9,16 @@ use gmap::GMap;
 pub struct GMapWrapper(GMap);
 
 fn trace<T>(x: T) -> T
-  where T : std::fmt::Debug {
+where
+  T: std::fmt::Debug,
+{
   log!("[rust] {:?}", x);
   x
 }
 
 #[wasm_bindgen]
 pub fn initialize_graph() -> GMapWrapper {
-  GMapWrapper(GMap::empty(2))
+  GMapWrapper(GMap::grid(10, 10).0)
 }
 
 #[wasm_bindgen]

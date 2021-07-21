@@ -5,3 +5,4 @@ authors = ["Lily Chung <lkdc@mit.edu>"]
 edition = "2018"
 
 [dependencies]
+itertools = "0.10"
