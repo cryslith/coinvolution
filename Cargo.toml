@@ -2,4 +2,9 @@
 
 members = [
     "gmap",
+    "coin-web",
 ]
+
+
+[profile.release]
+opt-level = "s"

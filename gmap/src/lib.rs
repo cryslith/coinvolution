@@ -19,7 +19,11 @@ pub struct GMap {
 }
 
 impl GMap {
-  pub fn new(dimension: usize, alpha: Vec<Vec<usize>>) -> Result<Self, GMapError> {
+  pub fn empty(dimension: usize) -> Self {
+    Self::from_alpha(dimension, vec![]).unwrap()
+  }
+
+  pub fn from_alpha(dimension: usize, alpha: Vec<Vec<usize>>) -> Result<Self, GMapError> {
     let g = GMap { dimension, alpha };
     g.check_valid()?;
     Ok(g)
@@ -70,6 +74,14 @@ impl GMap {
     }
 
     Ok(())
+  }
+
+  pub fn dimension(&self) -> usize {
+    self.dimension
+  }
+
+  pub fn alpha(&self) -> &[Vec<usize>] {
+    &self.alpha
   }
 
   pub fn al(&self, d: usize, alphas: impl Iterator<Item = usize>) -> usize {
