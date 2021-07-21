@@ -10,7 +10,7 @@ pub enum GMapError {
   AlreadyFree,
 }
 
-pub fn cell_alphas(i: usize, dim: usize) -> Vec<usize> {
+pub fn cell_indices(i: usize, dim: usize) -> Vec<usize> {
   (0..=dim).filter(|&x| x != i).collect()
 }
 
@@ -106,8 +106,8 @@ impl GMap {
     &self.alpha
   }
 
-  pub fn al(&self, d: usize, alphas: impl IntoIterator<Item = usize>) -> usize {
-    alphas.into_iter().fold(d, |d, a| self.alpha[d][a])
+  pub fn al(&self, d: usize, indices: impl IntoIterator<Item = usize>) -> usize {
+    indices.into_iter().fold(d, |d, a| self.alpha[d][a])
   }
 
   pub fn increase_dimension(&mut self, dim: usize) -> Result<(), GMapError> {
@@ -190,15 +190,15 @@ impl GMap {
   }
 
   pub fn cell(&self, d: usize, i: usize, dim: Option<usize>) -> impl Iterator<Item = usize> {
-    self.orbit(d, &cell_alphas(i, dim.unwrap_or(self.dimension)))
+    self.orbit(d, &cell_indices(i, dim.unwrap_or(self.dimension)))
   }
 
   pub fn sew(&mut self, i: usize, d0: usize, d1: usize) -> Result<Vec<(usize, usize)>, GMapError> {
-    let alphas: Vec<usize> = (0..=self.dimension)
+    let indices: Vec<usize> = (0..=self.dimension)
       .filter(|x| (x.wrapping_sub(i) as isize).abs() > 1)
       .collect();
-    let m0: HashMap<_, _> = self.orbit_paths(d0, &alphas).into_iter().collect();
-    let mut m1: HashMap<_, _> = self.orbit_paths(d1, &alphas).into_iter().collect();
+    let m0: HashMap<_, _> = self.orbit_paths(d0, &indices).into_iter().collect();
+    let mut m1: HashMap<_, _> = self.orbit_paths(d1, &indices).into_iter().collect();
     if m0.len() != m1.len() || m0.iter().any(|(x, _)| !m1.contains_key(x)) {
       return Err(GMapError::Unsewable);
     }
@@ -212,14 +212,54 @@ impl GMap {
   }
 
   pub fn unsew(&mut self, d: usize, i: usize) -> Result<Vec<(usize, usize)>, GMapError> {
-    let alphas: Vec<usize> = (0..=self.dimension)
+    let indices: Vec<usize> = (0..=self.dimension)
       .filter(|x| (x.wrapping_sub(i) as isize).abs() > 1)
       .collect();
     let mut output = Vec::new();
-    for d0 in self.orbit(d, &alphas) {
+    for d0 in self.orbit(d, &indices) {
       let d1 = self.unlink(i, d0)?;
       output.push((d0, d1));
     }
     Ok(output)
+  }
+}
+
+pub struct OrbitMap<A> {
+  map: HashMap<usize, A>,
+  indices: Vec<usize>,
+}
+
+impl<A> OrbitMap<A>
+where
+  A: Clone,
+{
+  pub fn new(indices: Vec<usize>) -> Self {
+    Self {
+      map: HashMap::new(),
+      indices,
+    }
+  }
+
+  pub fn over_cells(i: usize, dim: usize) -> Self {
+    Self::new(cell_indices(i, dim))
+  }
+
+  pub fn map(&self) -> &HashMap<usize, A> {
+    &self.map
+  }
+
+  pub fn into_map(self) -> HashMap<usize, A> {
+    self.map
+  }
+
+  pub fn insert(&mut self, g: &GMap, k: usize, v: A) {
+    for n in g.orbit(k, &self.indices) {
+      self.map.insert(n, v.clone());
+    }
+  }
+
+  pub fn remove(&mut self, g: &GMap, k: usize) -> Option<A> {
+    g.orbit(k, &self.indices)
+      .fold(None, |v, n| v.or(self.map.remove(&n)))
   }
 }
