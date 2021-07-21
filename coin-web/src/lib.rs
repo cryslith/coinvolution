@@ -1,12 +1,15 @@
 #[macro_use]
 pub mod utils;
 
+use gmap::{grid, GMap, OrbitMap};
+
 use wasm_bindgen::prelude::*;
 
-use gmap::GMap;
-
 #[wasm_bindgen]
-pub struct GMapWrapper(GMap);
+pub struct PuzzleState {
+  g: GMap,
+  layout: OrbitMap<(f64, f64)>, // positions of every vertex
+}
 
 fn trace<T>(x: T) -> T
 where
@@ -17,11 +20,19 @@ where
 }
 
 #[wasm_bindgen]
-pub fn initialize_graph() -> GMapWrapper {
-  GMapWrapper(GMap::grid(10, 10).0)
+pub fn initialize_puzzle() -> PuzzleState {
+  let (g, squares) = grid::new(10, 10);
+  let mut layout = OrbitMap::over_cells(0, 2);
+  for (i, row) in grid::vertex_grid(&g, &squares).iter().enumerate() {
+    for (j, &v) in row.iter().enumerate() {
+      layout.insert(&g, v, (j as f64, i as f64))
+    }
+  }
+
+  PuzzleState { g, layout }
 }
 
 #[wasm_bindgen]
-pub fn count_darts(g: &GMapWrapper) -> usize {
-  trace(g.0.alpha().len())
+pub fn count_darts(g: &PuzzleState) -> usize {
+  trace(g.g.alpha().len())
 }

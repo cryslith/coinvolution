@@ -1,4 +1,5 @@
-use itertools::Itertools;
+pub mod grid;
+
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
@@ -28,27 +29,6 @@ impl GMap {
     let g = GMap { dimension, alpha };
     g.check_valid()?;
     Ok(g)
-  }
-
-  pub fn grid(n: usize, m: usize) -> (Self, Vec<Vec<usize>>) {
-    let mut g = Self::empty(2);
-    let rows: Vec<Vec<usize>> = (0..n)
-      .map(|_| (0..m).map(|_| g.add_polygon(4)).collect())
-      .collect();
-    // Each square is the dart on the square's north edge, northwest vertex
-    for r in &rows {
-      for (&s0, &s1) in r.iter().tuple_windows() {
-        g.sew(2, g.al(s0, [0, 1]), g.al(s1, [1])).unwrap();
-      }
-    }
-
-    for (r0, r1) in rows.iter().tuple_windows() {
-      for (&s0, &s1) in r0.iter().zip(r1.iter()) {
-        g.sew(2, g.al(s0, [1, 0, 1]), s1).unwrap();
-      }
-    }
-
-    (g, rows)
   }
 
   fn check_valid(&self) -> Result<(), GMapError> {
@@ -250,6 +230,10 @@ where
 
   pub fn into_map(self) -> HashMap<usize, A> {
     self.map
+  }
+
+  pub fn indices(&self) -> &[usize] {
+    &self.indices
   }
 
   pub fn insert(&mut self, g: &GMap, k: usize, v: A) {
