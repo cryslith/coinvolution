@@ -202,6 +202,55 @@ impl GMap {
     }
     Ok(output)
   }
+
+  pub fn unique_by_orbit<'a>(
+    &'a self,
+    l: impl IntoIterator<Item = usize> + 'a,
+    a: Vec<usize>,
+  ) -> impl Iterator<Item = usize> + 'a {
+    let mut seen = HashSet::new();
+    l.into_iter().filter_map(move |dart| {
+      if seen.contains(&dart) {
+        return None;
+      }
+      for n in self.orbit(dart, &a) {
+        seen.insert(n);
+      }
+      Some(dart)
+    })
+  }
+
+  pub fn one_dart_per_orbit<'a>(&'a self, a: Vec<usize>) -> impl Iterator<Item = usize> + 'a {
+    self.unique_by_orbit(0..self.alpha.len(), a)
+  }
+
+  pub fn one_dart_per_cell<'a>(
+    &'a self,
+    i: usize,
+    dim: Option<usize>,
+  ) -> impl Iterator<Item = usize> + 'a {
+    self.one_dart_per_orbit(cell_indices(i, dim.unwrap_or(self.dimension)))
+  }
+
+  pub fn one_dart_per_incident_orbit<'a>(
+    &'a self,
+    d: usize,
+    a: Vec<usize>,
+    b: &[usize],
+  ) -> impl Iterator<Item = usize> + 'a {
+    self.unique_by_orbit(self.orbit(d, &b), a)
+  }
+
+  pub fn one_dart_per_incident_cell<'a>(
+    &'a self,
+    d: usize,
+    i: usize,
+    j: usize,
+    dim: Option<usize>,
+  ) -> impl Iterator<Item = usize> + 'a {
+    let dim = dim.unwrap_or(self.dimension);
+    self.one_dart_per_incident_orbit(d, cell_indices(i, dim), &cell_indices(j, dim))
+  }
 }
 
 pub struct OrbitMap<A> {
