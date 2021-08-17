@@ -30,7 +30,7 @@ pub fn vertex_grid(g: &GMap, squares: &[Vec<usize>]) -> Vec<Vec<usize>> {
       row
         .iter()
         .cloned()
-        .chain(row.last().map(|&d| g.al(d, [1])))
+        .chain(row.last().map(|&d| g.al(d, [0])))
         .collect()
     })
     .chain(squares.last().map(|row| {

@@ -33,6 +33,38 @@ pub fn initialize_puzzle() -> PuzzleState {
 }
 
 #[wasm_bindgen]
-pub fn count_darts(g: &PuzzleState) -> usize {
-  trace(g.g.alpha().len())
+pub fn count_darts(p: &PuzzleState) -> usize {
+  trace(p.g.alpha().len())
+}
+
+#[wasm_bindgen]
+pub fn make_face_clickers(state: &JsValue, p: &PuzzleState) {
+  let g = &p.g;
+  for face in g.one_dart_per_cell(2, None) {
+    log!("making clicker for face {}", face);
+    let mut vertex_locations = vec![];
+    let mut v = face;
+    loop {
+      log!("vertex {}", v);
+      let &(x, y) = p.layout.map().get(&v).expect("missing vertex in layout");
+      vertex_locations.push(x);
+      vertex_locations.push(y);
+      v = g.al(v, [0, 1]);
+      if v == face {
+        break;
+      }
+    }
+
+    make_face_clicker(state, face, &vertex_locations[..]);
+  }
+}
+
+#[wasm_bindgen(module = "/www/graph.js")]
+extern "C" {
+  fn make_face_clicker(state: &JsValue, face: usize, vertex_locations: &[f64]);
+}
+
+#[wasm_bindgen]
+pub fn on_face_click(p: &PuzzleState, face: usize) {
+  log!("clicked on face {}", face);
 }
