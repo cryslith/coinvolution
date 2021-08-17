@@ -1,4 +1,4 @@
-import {on_face_click} from "../../../../pkg/coin_web.js"; // this is so cursed
+import {on_face_click} from "../pkg/coin_web.js";
 
 export function make_face_clicker(state, face, vertex_locations) {
   let { svg, puzzle } = state;
@@ -8,4 +8,3 @@ export function make_face_clicker(state, face, vertex_locations) {
     on_face_click(puzzle, face);
   });
 }
- 

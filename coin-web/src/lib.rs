@@ -59,7 +59,7 @@ pub fn make_face_clickers(state: &JsValue, p: &PuzzleState) {
   }
 }
 
-#[wasm_bindgen(module = "/www/graph.js")]
+#[wasm_bindgen(raw_module = "../www/graph.js")]
 extern "C" {
   fn make_face_clicker(state: &JsValue, face: usize, vertex_locations: &[f64]);
 }
