@@ -41,11 +41,9 @@ pub fn count_darts(p: &PuzzleState) -> usize {
 pub fn make_face_clickers(state: &JsValue, p: &PuzzleState) {
   let g = &p.g;
   for face in g.one_dart_per_cell(2, None) {
-    log!("making clicker for face {}", face);
     let mut vertex_locations = vec![];
     let mut v = face;
     loop {
-      log!("vertex {}", v);
       let &(x, y) = p.layout.map().get(&v).expect("missing vertex in layout");
       vertex_locations.push(x);
       vertex_locations.push(y);
@@ -57,6 +55,17 @@ pub fn make_face_clickers(state: &JsValue, p: &PuzzleState) {
 
     make_face_clicker(state, face, &vertex_locations[..]);
   }
+}
+
+fn center(p: &PuzzleState, d: usize, i: usize) -> (f64, f64) {
+  let ((x, y), n) =
+    p.g
+      .one_dart_per_incident_cell(d, 0, i, None)
+      .fold(((0f64, 0f64), 0f64), |((x, y), n), d| {
+        let &(x1, y1) = p.layout.map().get(&d).expect("missing vertex in layout");
+        ((x + x1, y + y1), n + 1f64)
+      });
+  (x / n, y / n)
 }
 
 #[wasm_bindgen(raw_module = "../www/graph.js")]
