@@ -17,7 +17,5 @@ SVG.on(document, 'DOMContentLoaded', () => {
       };
 
       console.log(p);
-      count_darts(p);
-      make_face_clickers(state, p);
     });
 });

@@ -1,14 +1,43 @@
 #[macro_use]
 pub mod utils;
+pub mod svg;
+
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use gmap::{grid, GMap, OrbitMap};
 
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub struct PuzzleState {
+pub struct State {
+  p: Rc<RefCell<Puzzle>>,
+}
+
+#[wasm_bindgen]
+impl State {
+  #[wasm_bindgen(constructor)]
+  pub fn new() -> Self {
+    Self {
+      p: Rc::new(RefCell::new(Puzzle::new())),
+    }
+  }
+
+  pub fn display(&self, svg_: JsValue) {
+    let svg_ = svg::SVG(svg_);
+    let p = &self.p.borrow();
+    for face in p.g.one_dart_per_cell(2, None) {
+      let clicker = svg_.path();
+      
+      // make_face_clicker(face, &vertex_locations[..]);
+    }
+  }
+}
+
+pub struct Puzzle {
   g: GMap,
-  layout: OrbitMap<(f64, f64)>, // positions of every vertex
+  layout: OrbitMap<(f64, f64)>,     // positions of every vertex
+  face_clickers: OrbitMap<svg::Object>, // SVG path for each face
 }
 
 fn trace<T>(x: T) -> T
@@ -19,26 +48,25 @@ where
   x
 }
 
-#[wasm_bindgen]
-pub fn initialize_puzzle() -> PuzzleState {
-  let (g, squares) = grid::new(10, 10);
-  let mut layout = OrbitMap::over_cells(0, 2);
-  for (i, row) in grid::vertex_grid(&g, &squares).iter().enumerate() {
-    for (j, &v) in row.iter().enumerate() {
-      layout.insert(&g, v, (j as f64, i as f64))
+impl Puzzle {
+  pub fn new() -> Self {
+    let (g, squares) = grid::new(10, 10);
+    let mut layout = OrbitMap::over_cells(0, 2);
+    for (i, row) in grid::vertex_grid(&g, &squares).iter().enumerate() {
+      for (j, &v) in row.iter().enumerate() {
+        layout.insert(&g, v, (j as f64, i as f64))
+      }
+    }
+
+    Puzzle {
+      g,
+      layout,
+      face_clickers: OrbitMap::over_cells(2, 2),
     }
   }
-
-  PuzzleState { g, layout }
 }
 
-#[wasm_bindgen]
-pub fn count_darts(p: &PuzzleState) -> usize {
-  trace(p.g.alpha().len())
-}
-
-#[wasm_bindgen]
-pub fn make_face_clickers(state: &JsValue, p: &PuzzleState) {
+pub fn make_face_clickers(state: &JsValue, p: &Puzzle) {
   let g = &p.g;
   for face in g.one_dart_per_cell(2, None) {
     let mut vertex_locations = vec![];
@@ -57,7 +85,7 @@ pub fn make_face_clickers(state: &JsValue, p: &PuzzleState) {
   }
 }
 
-fn center(p: &PuzzleState, d: usize, i: usize) -> (f64, f64) {
+fn center(p: &Puzzle, d: usize, i: usize) -> (f64, f64) {
   let ((x, y), n) =
     p.g
       .one_dart_per_incident_cell(d, 0, i, None)
@@ -73,7 +101,6 @@ extern "C" {
   fn make_face_clicker(state: &JsValue, face: usize, vertex_locations: &[f64]);
 }
 
-#[wasm_bindgen]
-pub fn on_face_click(p: &PuzzleState, face: usize) {
+pub fn on_face_click(p: &Puzzle, face: usize) {
   log!("clicked on face {}", face);
 }
