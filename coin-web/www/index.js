@@ -1,4 +1,4 @@
-import init, {initialize_puzzle, count_darts, make_face_clickers, set_panic_hook} from "../pkg/coin_web.js";
+import init, {initialize, set_panic_hook} from "../pkg/coin_web.js";
 
 const WIDTH = 1000, HEIGHT = 500;
 
@@ -10,12 +10,8 @@ SVG.on(document, 'DOMContentLoaded', () => {
       const draw = SVG('#draw').size(WIDTH, HEIGHT);
       const view = draw.group().scale(40).translate(50, 50);
 
-      const p = initialize_puzzle(); 
-      const state = {
-        svg: view,
-        puzzle: p
-      };
+      const s = initialize(view);
 
-      console.log(p);
+      console.log("initialized");
     });
 });
