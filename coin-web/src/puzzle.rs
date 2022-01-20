@@ -10,13 +10,40 @@ use wasm_bindgen::prelude::Closure;
 struct FaceClicker {
   path: svg::Object,
   click: Option<Closure<dyn FnMut()>>,
-}  
+}
+
+pub enum Marker {
+  Dot,
+  Cross,
+  Fill,
+  CrossLine,
+  Arrow,
+}
+
+pub type Color = String;
+
+pub enum DataType {
+  String(Color),
+  Enum(Vec<(Marker, Color)>),
+}
+
+#[derive(Clone)]
+pub enum Data {
+  String(String),
+  Enum(u64),
+}
+
+pub struct Layer {
+  datatype: DataType,
+  data: OrbitMap<Data>,
+}
 
 pub struct Puzzle {
   g: GMap,
   svg: SVG,
   layout: OrbitMap<(f64, f64)>,         // positions of every vertex
   face_clickers: OrbitMap<Rc<RefCell<FaceClicker>>>,
+  layers: Vec<Layer>,
 }
 
 impl Puzzle {
@@ -34,6 +61,7 @@ impl Puzzle {
       svg,
       layout,
       face_clickers: OrbitMap::over_cells(2, 2),
+      layers: vec![],
     }
   }
 
