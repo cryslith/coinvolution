@@ -98,7 +98,9 @@ impl Puzzle {
       clicker.attr("stroke-width", "0.05");
       clicker.attr("fill", "transparent");
       let jstate_onclick = jstate.clone();
-      let onclick = Closure::new(move || log!("face {} clicked", face));
+      let onclick = Closure::new(move || {
+        jstate_onclick.handle(crate::Event::Puzzle(Event::FaceClicked { face }));
+      });
       clicker.click(&onclick);
       self.face_clickers.insert(
         &g,
@@ -112,7 +114,11 @@ impl Puzzle {
   }
 
   pub(crate) fn handle(&mut self, e: Event, events: &mut VecDeque<crate::Event>, jstate: &JState) {
-    todo!()
+    match e {
+      Event::FaceClicked { face } => {
+        log!("event: face {} clicked", face);
+      }
+    }
   }
 }
 

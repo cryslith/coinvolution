@@ -44,10 +44,10 @@ enum Event {
 pub struct JState(Rc<RefCell<State>>);
 
 impl JState {
-  fn handle(self, e: Event) {
+  fn handle(&self, e: Event) {
     let mut state = self.0.borrow_mut();
     state.events.push_back(e);
-    state.handle_all(&self);
+    state.handle_all(self);
   }
 }
 
