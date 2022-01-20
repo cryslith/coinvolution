@@ -1,4 +1,4 @@
-pub mod grid;
+pub mod grids;
 
 use std::collections::{HashMap, HashSet};
 

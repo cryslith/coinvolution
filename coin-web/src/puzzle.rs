@@ -1,8 +1,10 @@
 use crate::svg::{self, SVG};
+use crate::JState;
 
-use gmap::{grid, GMap, OrbitMap};
+use gmap::{grids::square, GMap, OrbitMap};
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 use wasm_bindgen::prelude::Closure;
@@ -30,7 +32,7 @@ pub enum DataType {
 #[derive(Clone)]
 pub enum Data {
   String(String),
-  Enum(u64),
+  Enum(usize),
 }
 
 pub struct Layer {
@@ -41,16 +43,21 @@ pub struct Layer {
 pub struct Puzzle {
   g: GMap,
   svg: SVG,
-  layout: OrbitMap<(f64, f64)>,         // positions of every vertex
+  layout: OrbitMap<(f64, f64)>, // positions of every vertex
   face_clickers: OrbitMap<Rc<RefCell<FaceClicker>>>,
   layers: Vec<Layer>,
+  active_layer: Option<usize>,
+}
+
+pub enum Event {
+  FaceClicked { face: usize },
 }
 
 impl Puzzle {
   pub fn new(svg: svg::SVG) -> Self {
-    let (g, squares) = grid::new(10, 10);
+    let (g, squares) = square::new(10, 10);
     let mut layout = OrbitMap::over_cells(0, 2);
-    for (i, row) in grid::vertex_grid(&g, &squares).iter().enumerate() {
+    for (i, row) in square::vertex_grid(&g, &squares).iter().enumerate() {
       for (j, &v) in row.iter().enumerate() {
         layout.insert(&g, v, (j as f64, i as f64))
       }
@@ -62,10 +69,13 @@ impl Puzzle {
       layout,
       face_clickers: OrbitMap::over_cells(2, 2),
       layers: vec![],
+      active_layer: None,
     }
   }
 
-  pub fn display(&mut self) {
+  // fn face_click(
+
+  pub fn display(&mut self, jstate: &JState) {
     let g = &self.g;
     for face in g.one_dart_per_cell(2, None) {
       let mut segments = vec![];
@@ -87,13 +97,22 @@ impl Puzzle {
       clicker.attr("stroke", "gray");
       clicker.attr("stroke-width", "0.05");
       clicker.attr("fill", "transparent");
+      let jstate_onclick = jstate.clone();
       let onclick = Closure::new(move || log!("face {} clicked", face));
       clicker.click(&onclick);
-      self.face_clickers.insert(&g, face, Rc::new(RefCell::new(FaceClicker {
-        path: clicker,
-        click: Some(onclick),
-      })));
+      self.face_clickers.insert(
+        &g,
+        face,
+        Rc::new(RefCell::new(FaceClicker {
+          path: clicker,
+          click: Some(onclick),
+        })),
+      );
     }
+  }
+
+  pub(crate) fn handle(&mut self, e: Event, events: &mut VecDeque<crate::Event>, jstate: &JState) {
+    todo!()
   }
 }
 
