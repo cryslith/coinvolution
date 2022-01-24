@@ -1,4 +1,4 @@
-use crate::svg::{self, SVG};
+use crate::svg::{self, get_location, JsEvent, SVG};
 use crate::JState;
 
 use gmap::{grids::square, GMap, OrbitMap};
@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::Closure;
 
 struct FaceClicker {
   path: svg::Object,
-  click: Option<Closure<dyn FnMut()>>,
+  click: Option<Closure<dyn FnMut(&JsEvent)>>,
 }
 
 pub enum Marker {
@@ -50,7 +50,7 @@ pub struct Puzzle {
 }
 
 pub enum Event {
-  FaceClicked { face: usize },
+  FaceClicked { face: usize, x: f64, y: f64 },
 }
 
 impl Puzzle {
@@ -97,9 +97,15 @@ impl Puzzle {
       clicker.attr("stroke", "gray");
       clicker.attr("stroke-width", "0.05");
       clicker.attr("fill", "transparent");
+      let svg_onclick = self.svg.clone();
       let jstate_onclick = jstate.clone();
-      let onclick = Closure::new(move || {
-        jstate_onclick.handle(crate::Event::Puzzle(Event::FaceClicked { face }));
+      let onclick = Closure::new(move |e: &JsEvent| {
+        let p = get_location(&svg_onclick, &e);
+        jstate_onclick.handle(crate::Event::Puzzle(Event::FaceClicked {
+          face,
+          x: p.x(),
+          y: p.y(),
+        }));
       });
       clicker.click(&onclick);
       self.face_clickers.insert(
@@ -115,8 +121,8 @@ impl Puzzle {
 
   pub(crate) fn handle(&mut self, e: Event, events: &mut VecDeque<crate::Event>, jstate: &JState) {
     match e {
-      Event::FaceClicked { face } => {
-        log!("event: face {} clicked", face);
+      Event::FaceClicked { face, x, y } => {
+        log!("event: face {} clicked at ({}, {})", face, x, y);
       }
     }
   }
