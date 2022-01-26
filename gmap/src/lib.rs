@@ -203,6 +203,7 @@ impl GMap {
     Ok(output)
   }
 
+  /// filter out darts which are in the same a-orbit as a previous dart
   pub fn unique_by_orbit<'a>(
     &'a self,
     l: impl IntoIterator<Item = usize> + 'a,
@@ -220,10 +221,12 @@ impl GMap {
     })
   }
 
+  /// one dart per a-orbit
   pub fn one_dart_per_orbit<'a>(&'a self, a: Vec<usize>) -> impl Iterator<Item = usize> + 'a {
     self.unique_by_orbit(0..self.alpha.len(), a)
   }
 
+  /// one dart per i-cell (in dim)
   pub fn one_dart_per_cell<'a>(
     &'a self,
     i: usize,
@@ -232,6 +235,8 @@ impl GMap {
     self.one_dart_per_orbit(cell_indices(i, dim.unwrap_or(self.dimension)))
   }
 
+  /// one dart per a-orbit incident to d's b-orbit.
+  /// darts are guaranteed to be in both orbits.
   pub fn one_dart_per_incident_orbit<'a>(
     &'a self,
     d: usize,
@@ -241,6 +246,8 @@ impl GMap {
     self.unique_by_orbit(self.orbit(d, &b), a)
   }
 
+  /// one dart per i-cell (in dim) incident to d's j-cell (in dim).
+  /// darts are guaranteed to be in both cells.
   pub fn one_dart_per_incident_cell<'a>(
     &'a self,
     d: usize,

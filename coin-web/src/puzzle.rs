@@ -119,10 +119,44 @@ impl Puzzle {
     }
   }
 
+  pub fn identify_dart(&self, face: usize, x: f64, y: f64) -> usize {
+    let g = &self.g;
+    let mut best_vertex = None;
+    let mut best_distance = 0f64;
+    let dist = |v: usize| {
+      let &(vx, vy) = self.layout.map().get(&v).expect("missing vertex in layout");
+      let dx = vx - x;
+      let dy = vy - y;
+      return dx * dx + dy * dy;
+    };
+    for v in g.one_dart_per_incident_cell(face, 0, 2, None) {
+      let d = dist(v);
+      if best_vertex == None || d < best_distance {
+        best_vertex = Some(v);
+        best_distance = d;
+      }
+    }
+    let best_vertex = best_vertex.expect("no vertices");
+    let a1 = g.al(best_vertex, [0]);
+    let a2 = g.al(best_vertex, [1, 0]);
+    if dist(a1) < dist(a2) {
+      return best_vertex;
+    } else {
+      return g.al(best_vertex, [1]);
+    }
+  }
+
   pub(crate) fn handle(&mut self, e: Event, events: &mut VecDeque<crate::Event>, jstate: &JState) {
     match e {
       Event::FaceClicked { face, x, y } => {
-        log!("event: face {} clicked at ({}, {})", face, x, y);
+        let dart = self.identify_dart(face, x, y);
+        log!(
+          "event: face {} clicked at ({}, {}).  dart: {}",
+          face,
+          x,
+          y,
+          dart
+        );
       }
     }
   }
