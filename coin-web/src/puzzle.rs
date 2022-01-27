@@ -29,7 +29,7 @@ pub enum DataType {
   Enum(Vec<(Marker, Color)>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Data {
   String(String),
   Enum(usize),
@@ -38,6 +38,7 @@ pub enum Data {
 pub struct Layer {
   datatype: DataType,
   data: OrbitMap<Data>,
+  active_dart: Option<usize>,
 }
 
 pub struct Puzzle {
@@ -50,7 +51,9 @@ pub struct Puzzle {
 }
 
 pub enum Event {
-  FaceClicked { face: usize, x: f64, y: f64 },
+  ClickReceived { face: usize, x: f64, y: f64 },
+  DartClicked(usize),
+  LayerData(usize),
 }
 
 impl Puzzle {
@@ -68,12 +71,14 @@ impl Puzzle {
       svg,
       layout,
       face_clickers: OrbitMap::over_cells(2, 2),
-      layers: vec![],
-      active_layer: None,
+      layers: vec![Layer {
+        datatype: DataType::Enum(vec![(Marker::Fill, "black".to_string())]),
+        data: OrbitMap::over_cells(1, 2),
+        active_dart: None,
+      }],
+      active_layer: Some(0),
     }
   }
-
-  // fn face_click(
 
   pub fn display(&mut self, jstate: &JState) {
     let g = &self.g;
@@ -101,7 +106,7 @@ impl Puzzle {
       let jstate_onclick = jstate.clone();
       let onclick = Closure::new(move |e: &JsEvent| {
         let p = get_location(&svg_onclick, &e);
-        jstate_onclick.handle(crate::Event::Puzzle(Event::FaceClicked {
+        jstate_onclick.handle(crate::Event::Puzzle(Event::ClickReceived {
           face,
           x: p.x(),
           y: p.y(),
@@ -146,9 +151,9 @@ impl Puzzle {
     }
   }
 
-  pub(crate) fn handle(&mut self, e: Event, events: &mut VecDeque<crate::Event>, jstate: &JState) {
+  pub(crate) fn handle(&mut self, e: Event, events: &mut VecDeque<crate::Event>, _jstate: &JState) {
     match e {
-      Event::FaceClicked { face, x, y } => {
+      Event::ClickReceived { face, x, y } => {
         let dart = self.identify_dart(face, x, y);
         log!(
           "event: face {} clicked at ({}, {}).  dart: {}",
@@ -157,6 +162,41 @@ impl Puzzle {
           y,
           dart
         );
+        events.push_back(crate::Event::Puzzle(Event::DartClicked(dart)));
+      }
+      Event::DartClicked(dart) => {
+        let layer = if let Some(layer) = self.active_layer {
+          &mut self.layers[layer]
+        } else {
+          return;
+        };
+        match layer.datatype {
+          DataType::String(_) => {
+            layer.active_dart = Some(dart);
+          }
+          DataType::Enum(ref v) => {
+            let i = match layer.data.map().get(&dart) {
+              None => 0,
+              Some(Data::Enum(i)) => i + 1,
+              _ => panic!("incorrect data for datatype"),
+            };
+            if i < v.len() {
+              layer.data.insert(&self.g, dart, Data::Enum(i));
+            } else {
+              layer.data.remove(&self.g, dart);
+            }
+            events.push_back(crate::Event::Puzzle(Event::LayerData(dart)));
+          }
+        }
+      }
+      Event::LayerData(dart) => {
+        let layer = if let Some(layer) = self.active_layer {
+          &self.layers[layer]
+        } else {
+          return;
+        };
+        let data = layer.data.map().get(&dart);
+        log!("dart {} updated, value: {:?}", dart, data);
       }
     }
   }
