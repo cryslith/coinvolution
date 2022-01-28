@@ -36,6 +36,7 @@ pub enum Data {
 }
 
 pub struct Layer {
+  // todo combine datatype and data into a single enum
   datatype: DataType,
   data: OrbitMap<Data>,
   active_dart: Option<usize>,
@@ -223,9 +224,10 @@ impl Puzzle {
                                              a 0.1 0.1 0 0 0 -0.2 0 \
                                              a 0.1 0.1 0 0 0 +0.2 0",
                       cx, cy
-                    ));
+                    )); // todo abstract magic numbers
                     new_marker.attr("stroke", "none");
                     new_marker.attr("fill", color);
+                    new_marker.attr("pointer-events", "none");
                     layer.markers.insert(&self.g, dart, new_marker);
                   }
                   _ => todo!(),
