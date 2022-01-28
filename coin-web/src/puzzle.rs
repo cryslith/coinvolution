@@ -39,6 +39,7 @@ pub struct Layer {
   datatype: DataType,
   data: OrbitMap<Data>,
   active_dart: Option<usize>,
+  markers: OrbitMap<svg::Object>,
 }
 
 pub struct Puzzle {
@@ -72,9 +73,13 @@ impl Puzzle {
       layout,
       face_clickers: OrbitMap::over_cells(2, 2),
       layers: vec![Layer {
-        datatype: DataType::Enum(vec![(Marker::Fill, "black".to_string())]),
+        datatype: DataType::Enum(vec![
+          (Marker::Dot, "black".to_string()),
+          (Marker::Dot, "red".to_string()),
+        ]),
         data: OrbitMap::over_cells(1, 2),
         active_dart: None,
+        markers: OrbitMap::over_cells(1, 2),
       }],
       active_layer: Some(0),
     }
@@ -191,23 +196,57 @@ impl Puzzle {
       }
       Event::LayerData(dart) => {
         let layer = if let Some(layer) = self.active_layer {
-          &self.layers[layer]
+          &mut self.layers[layer]
         } else {
           return;
         };
         let data = layer.data.map().get(&dart);
         log!("dart {} updated, value: {:?}", dart, data);
+        match &layer.datatype {
+          DataType::String(color) => todo!(),
+          DataType::Enum(spec) => {
+            if let Some(old_marker) = layer.markers.map().get(&dart) {
+              old_marker.remove();
+            }
+
+            match data {
+              None => {}
+              Some(Data::Enum(i)) => {
+                let (marker_type, color) = &spec[*i];
+                match marker_type {
+                  Marker::Dot => {
+                    let (cx, cy) = center(&self.g, &self.layout, dart, 1); // todo detect cell type
+                    let new_marker = self.svg.path();
+                    new_marker.plot(&format!(
+                      "M {} {} \
+                                             m 0.1 0 \
+                                             a 0.1 0.1 0 0 0 -0.2 0 \
+                                             a 0.1 0.1 0 0 0 +0.2 0",
+                      cx, cy
+                    ));
+                    new_marker.attr("stroke", "none");
+                    new_marker.attr("fill", color);
+                    layer.markers.insert(&self.g, dart, new_marker);
+                  }
+                  _ => todo!(),
+                }
+              }
+              _ => panic!("incorrect data for datatype"),
+            }
+          }
+          _ => panic!("incorrect data for datatype"),
+        }
       }
     }
   }
 }
 
-fn center(p: &Puzzle, d: usize, i: usize) -> (f64, f64) {
+/// center of the i-cell at d
+fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: usize, i: usize) -> (f64, f64) {
   let ((x, y), n) =
-    p.g
-      .one_dart_per_incident_cell(d, 0, i, None)
+    g.one_dart_per_incident_cell(d, 0, i, None)
       .fold(((0f64, 0f64), 0f64), |((x, y), n), d| {
-        let &(x1, y1) = p.layout.map().get(&d).expect("missing vertex in layout");
+        let &(x1, y1) = layout.map().get(&d).expect("missing vertex in layout");
         ((x + x1, y + y1), n + 1f64)
       });
   (x / n, y / n)
