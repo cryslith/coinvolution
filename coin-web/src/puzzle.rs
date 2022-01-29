@@ -118,7 +118,7 @@ impl Puzzle {
           y: p.y(),
         }));
       });
-      clicker.click(&onclick);
+      clicker.on("mousedown", &onclick);
       self.face_clickers.insert(
         &g,
         face,

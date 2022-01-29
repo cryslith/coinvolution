@@ -18,7 +18,7 @@ extern "C" {
   #[wasm_bindgen(structural, method)]
   pub fn remove(o: &Object);
   #[wasm_bindgen(structural, method)]
-  pub fn click(o: &Object, callback: &Closure<dyn FnMut(&JsEvent)>);
+  pub fn on(o: &Object, event: &str, callback: &Closure<dyn FnMut(&JsEvent)>);
   #[wasm_bindgen(structural, method)]
   pub fn front(o: &Object);
   #[wasm_bindgen(structural, method)]
