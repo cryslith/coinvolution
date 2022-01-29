@@ -242,11 +242,11 @@ impl Puzzle {
 
 /// center of the a-orbit at d
 fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: usize, a: &[usize]) -> (f64, f64) {
-  let ((x, y), n) =
-    g.one_dart_per_incident_orbit(d, gmap::cell_indices(0, 2), a)
-      .fold(((0f64, 0f64), 0f64), |((x, y), n), d| {
-        let &(x1, y1) = layout.map().get(&d).expect("missing vertex in layout");
-        ((x + x1, y + y1), n + 1f64)
-      });
+  let ((x, y), n) = g
+    .one_dart_per_incident_orbit(d, gmap::cell_indices(0, 2), a)
+    .fold(((0f64, 0f64), 0f64), |((x, y), n), d| {
+      let &(x1, y1) = layout.map().get(&d).expect("missing vertex in layout");
+      ((x + x1, y + y1), n + 1f64)
+    });
   (x / n, y / n)
 }
