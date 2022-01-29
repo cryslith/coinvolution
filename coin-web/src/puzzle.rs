@@ -24,21 +24,19 @@ pub enum Marker {
 
 pub type Color = String;
 
-pub enum DataType {
-  String(Color),
-  Enum(Vec<(Marker, Color)>),
-}
-
-#[derive(Clone, Debug)]
-pub enum Data {
-  String(String),
-  Enum(usize),
+pub enum LayerData {
+  String {
+    color: Color,
+    data: OrbitMap<String>,
+  },
+  Enum {
+    spec: Vec<(Marker, Color)>,
+    data: OrbitMap<usize>,
+  },
 }
 
 pub struct Layer {
-  // todo combine datatype and data into a single enum
-  datatype: DataType,
-  data: OrbitMap<Data>,
+  data: LayerData,
   active_dart: Option<usize>,
   markers: OrbitMap<svg::Object>,
 }
@@ -74,11 +72,13 @@ impl Puzzle {
       layout,
       face_clickers: OrbitMap::over_cells(2, 2),
       layers: vec![Layer {
-        datatype: DataType::Enum(vec![
-          (Marker::Dot, "black".to_string()),
-          (Marker::Dot, "red".to_string()),
-        ]),
-        data: OrbitMap::over_cells(1, 2),
+        data: LayerData::Enum {
+          spec: vec![
+            (Marker::Dot, "black".to_string()),
+            (Marker::Dot, "red".to_string()),
+          ],
+          data: OrbitMap::over_cells(1, 2),
+        },
         active_dart: None,
         markers: OrbitMap::over_cells(1, 2),
       }],
@@ -176,20 +176,16 @@ impl Puzzle {
         } else {
           return;
         };
-        match layer.datatype {
-          DataType::String(_) => {
+        match &mut layer.data {
+          LayerData::String { .. } => {
             layer.active_dart = Some(dart);
           }
-          DataType::Enum(ref v) => {
-            let i = match layer.data.map().get(&dart) {
-              None => 0,
-              Some(Data::Enum(i)) => i + 1,
-              _ => panic!("incorrect data for datatype"),
-            };
-            if i < v.len() {
-              layer.data.insert(&self.g, dart, Data::Enum(i));
+          LayerData::Enum { spec, data } => {
+            let i = data.map().get(&dart).map(|x| x + 1).unwrap_or(0);
+            if i < spec.len() {
+              data.insert(&self.g, dart, i);
             } else {
-              layer.data.remove(&self.g, dart);
+              data.remove(&self.g, dart);
             }
             events.push_back(crate::Event::Puzzle(Event::LayerData(dart)));
           }
@@ -201,18 +197,19 @@ impl Puzzle {
         } else {
           return;
         };
-        let data = layer.data.map().get(&dart);
-        log!("dart {} updated, value: {:?}", dart, data);
-        match &layer.datatype {
-          DataType::String(color) => todo!(),
-          DataType::Enum(spec) => {
+        match &layer.data {
+          LayerData::String { .. } => todo!(),
+          LayerData::Enum { spec, data } => {
+            let value = data.map().get(&dart);
+            log!("dart {} updated, value: {:?}", dart, value);
+
             if let Some(old_marker) = layer.markers.map().get(&dart) {
               old_marker.remove();
             }
 
-            match data {
+            match value {
               None => {}
-              Some(Data::Enum(i)) => {
+              Some(i) => {
                 let (marker_type, color) = &spec[*i];
                 match marker_type {
                   Marker::Dot => {
@@ -233,10 +230,8 @@ impl Puzzle {
                   _ => todo!(),
                 }
               }
-              _ => panic!("incorrect data for datatype"),
             }
           }
-          _ => panic!("incorrect data for datatype"),
         }
       }
     }
