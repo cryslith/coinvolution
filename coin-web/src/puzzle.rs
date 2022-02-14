@@ -50,12 +50,6 @@ pub struct Puzzle {
   active_layer: Option<usize>,
 }
 
-pub enum Event {
-  ClickReceived { face: usize, x: f64, y: f64 },
-  DartClicked(usize),
-  LayerData(usize),
-}
-
 impl Puzzle {
   pub fn new(svg: svg::SVG) -> Self {
     let (g, squares) = square::new(10, 10);
@@ -111,12 +105,9 @@ impl Puzzle {
       let svg_onclick = self.svg.clone();
       let jstate_onclick = jstate.clone();
       let onclick = Closure::new(move |e: &JsEvent| {
+        let mut state = jstate_onclick.0.borrow_mut();
         let p = get_location(&svg_onclick, &e);
-        jstate_onclick.handle(crate::Event::Puzzle(Event::ClickReceived {
-          face,
-          x: p.x(),
-          y: p.y(),
-        }));
+        state.p.handle_click(face, p.x(), p.y());
       });
       clicker.on("mousedown", &onclick);
       self.face_clickers.insert(
@@ -157,81 +148,79 @@ impl Puzzle {
     }
   }
 
-  pub(crate) fn handle(&mut self, e: Event, events: &mut VecDeque<crate::Event>, _jstate: &JState) {
-    match e {
-      Event::ClickReceived { face, x, y } => {
-        let dart = self.identify_dart(face, x, y);
-        log!(
-          "event: face {} clicked at ({}, {}).  dart: {}",
-          face,
-          x,
-          y,
-          dart
-        );
-        events.push_back(crate::Event::Puzzle(Event::DartClicked(dart)));
+  pub(crate) fn handle_click(&mut self, face: usize, x: f64, y: f64) {
+    let dart = self.identify_dart(face, x, y);
+    log!(
+      "event: face {} clicked at ({}, {}).  dart: {}",
+      face,
+      x,
+      y,
+      dart
+    );
+    self.click_dart(dart);
+  }
+
+  fn click_dart(&mut self, dart: usize) {
+    let layer = if let Some(layer) = self.active_layer {
+      &mut self.layers[layer]
+    } else {
+      return;
+    };
+    match &mut layer.data {
+      LayerData::String { .. } => {
+        layer.active_dart = Some(dart);
       }
-      Event::DartClicked(dart) => {
-        let layer = if let Some(layer) = self.active_layer {
-          &mut self.layers[layer]
+      LayerData::Enum { spec, data } => {
+        let i = data.map().get(&dart).map(|x| x + 1).unwrap_or(0);
+        if i < spec.len() {
+          data.insert(&self.g, dart, i);
         } else {
-          return;
-        };
-        match &mut layer.data {
-          LayerData::String { .. } => {
-            layer.active_dart = Some(dart);
-          }
-          LayerData::Enum { spec, data } => {
-            let i = data.map().get(&dart).map(|x| x + 1).unwrap_or(0);
-            if i < spec.len() {
-              data.insert(&self.g, dart, i);
-            } else {
-              data.remove(&self.g, dart);
-            }
-            events.push_back(crate::Event::Puzzle(Event::LayerData(dart)));
-          }
+          data.remove(&self.g, dart);
         }
+        self.redraw_active_layer(dart);
       }
-      Event::LayerData(dart) => {
-        let layer = if let Some(layer) = self.active_layer {
-          &mut self.layers[layer]
-        } else {
-          return;
-        };
-        match &layer.data {
-          LayerData::String { .. } => todo!(),
-          LayerData::Enum { spec, data } => {
-            let value = data.map().get(&dart);
-            let indices = data.indices();
+    }
+  }
 
-            log!("dart {} updated, value: {:?}", dart, value);
+  pub fn redraw_active_layer(&mut self, dart: usize) {
+    let layer = if let Some(layer) = self.active_layer {
+      &mut self.layers[layer]
+    } else {
+      return;
+    };
+    match &layer.data {
+      LayerData::String { .. } => todo!(),
+      LayerData::Enum { spec, data } => {
+        let value = data.map().get(&dart);
+        let indices = data.indices();
 
-            if let Some(old_marker) = layer.markers.map().get(&dart) {
-              old_marker.remove();
-            }
+        log!("dart {} updated, value: {:?}", dart, value);
 
-            match value {
-              None => {}
-              Some(i) => {
-                let (marker_type, color) = &spec[*i];
-                match marker_type {
-                  Marker::Dot => {
-                    let (cx, cy) = center(&self.g, &self.layout, dart, indices);
-                    let new_marker = self.svg.path();
-                    new_marker.plot(&format!(
-                      "M {} {} \
-                                             m 0.1 0 \
-                                             a 0.1 0.1 0 0 0 -0.2 0 \
-                                             a 0.1 0.1 0 0 0 +0.2 0",
-                      cx, cy
-                    )); // todo abstract magic numbers
-                    new_marker.attr("stroke", "none");
-                    new_marker.attr("fill", color);
-                    new_marker.attr("pointer-events", "none");
-                    layer.markers.insert(&self.g, dart, new_marker);
-                  }
-                  _ => todo!(),
-                }
+        if let Some(old_marker) = layer.markers.map().get(&dart) {
+          old_marker.remove();
+        }
+
+        match value {
+          None => {}
+          Some(i) => {
+            let (marker_type, color) = &spec[*i];
+            match marker_type {
+              Marker::Dot => {
+                let (cx, cy) = center(&self.g, &self.layout, dart, indices);
+                let new_marker = self.svg.path();
+                new_marker.plot(&format!(
+                  "M {} {} \
+                   m 0.1 0 \
+                   a 0.1 0.1 0 0 0 -0.2 0 \
+                   a 0.1 0.1 0 0 0 +0.2 0",
+                  cx, cy
+                )); // todo abstract magic numbers
+                new_marker.attr("stroke", "none");
+                new_marker.attr("fill", color);
+                new_marker.attr("pointer-events", "none");
+                layer.markers.insert(&self.g, dart, new_marker);
               }
+              _ => todo!(),
             }
           }
         }
