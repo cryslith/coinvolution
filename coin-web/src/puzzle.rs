@@ -1,7 +1,7 @@
 use crate::svg::{self, get_location, JsEvent, SVG};
 use crate::JState;
 
-use gmap::{grids::square, GMap, OrbitMap};
+use gmap::{grids::square, GMap, OrbitMap, Dart, Alphas};
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -37,7 +37,7 @@ pub enum LayerData {
 
 pub struct Layer {
   data: LayerData,
-  active_dart: Option<usize>,
+  active_dart: Option<Dart>,
   markers: OrbitMap<svg::Object>,
 }
 
@@ -53,7 +53,7 @@ pub struct Puzzle {
 impl Puzzle {
   pub fn new(svg: svg::SVG) -> Self {
     let (g, squares) = square::new(10, 10);
-    let mut layout = OrbitMap::over_cells(0, 2);
+    let mut layout = OrbitMap::new(Alphas::VERTEX);
     for (i, row) in square::vertex_grid(&g, &squares).iter().enumerate() {
       for (j, &v) in row.iter().enumerate() {
         layout.insert(&g, v, (j as f64, i as f64))
@@ -64,17 +64,17 @@ impl Puzzle {
       g,
       svg,
       layout,
-      face_clickers: OrbitMap::over_cells(2, 2),
+      face_clickers: OrbitMap::new(Alphas::FACE),
       layers: vec![Layer {
         data: LayerData::Enum {
           spec: vec![
             (Marker::Dot, "black".to_string()),
             (Marker::Dot, "red".to_string()),
           ],
-          data: OrbitMap::over_cells(1, 2),
+          data: OrbitMap::new(Alphas::EDGE),
         },
         active_dart: None,
-        markers: OrbitMap::over_cells(1, 2),
+        markers: OrbitMap::new(Alphas::EDGE),
       }],
       active_layer: Some(0),
     }
@@ -82,7 +82,7 @@ impl Puzzle {
 
   pub fn display(&mut self, jstate: &JState) {
     let g = &self.g;
-    for face in g.one_dart_per_cell(2, None) {
+    for face in g.one_dart_per_cell(2) {
       let mut segments = vec![];
       let mut v = face;
       loop {
@@ -121,17 +121,17 @@ impl Puzzle {
     }
   }
 
-  pub fn identify_dart(&self, face: usize, x: f64, y: f64) -> usize {
+  pub fn identify_dart(&self, face: Dart, x: f64, y: f64) -> Dart {
     let g = &self.g;
     let mut best_vertex = None;
     let mut best_distance = 0f64;
-    let dist = |v: usize| {
+    let dist = |v: Dart| {
       let &(vx, vy) = self.layout.map().get(&v).expect("missing vertex in layout");
       let dx = vx - x;
       let dy = vy - y;
       return dx * dx + dy * dy;
     };
-    for v in g.one_dart_per_incident_cell(face, 0, 2, None) {
+    for v in g.one_dart_per_incident_cell(face, 0, 2) {
       let d = dist(v);
       if best_vertex == None || d < best_distance {
         best_vertex = Some(v);
@@ -148,7 +148,7 @@ impl Puzzle {
     }
   }
 
-  pub(crate) fn handle_click(&mut self, face: usize, x: f64, y: f64) {
+  pub(crate) fn handle_click(&mut self, face: Dart, x: f64, y: f64) {
     let dart = self.identify_dart(face, x, y);
     log!(
       "event: face {} clicked at ({}, {}).  dart: {}",
@@ -160,7 +160,7 @@ impl Puzzle {
     self.click_dart(dart);
   }
 
-  fn click_dart(&mut self, dart: usize) {
+  fn click_dart(&mut self, dart: Dart) {
     let layer = if let Some(layer) = self.active_layer {
       &mut self.layers[layer]
     } else {
@@ -182,7 +182,7 @@ impl Puzzle {
     }
   }
 
-  pub fn redraw_active_layer(&mut self, dart: usize) {
+  pub fn redraw_active_layer(&mut self, dart: Dart) {
     let layer = if let Some(layer) = self.active_layer {
       &mut self.layers[layer]
     } else {
@@ -230,9 +230,9 @@ impl Puzzle {
 }
 
 /// center of the a-orbit at d
-fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: usize, a: &[usize]) -> (f64, f64) {
+fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: Dart, a: Alphas) -> (f64, f64) {
   let ((x, y), n) = g
-    .one_dart_per_incident_orbit(d, gmap::cell_indices(0, 2), a)
+    .one_dart_per_incident_orbit(d, Alphas::VERTEX, a)
     .fold(((0f64, 0f64), 0f64), |((x, y), n), d| {
       let &(x1, y1) = layout.map().get(&d).expect("missing vertex in layout");
       ((x + x1, y + y1), n + 1f64)

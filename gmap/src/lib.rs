@@ -2,6 +2,7 @@ pub mod grids;
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
+use std::fmt;
 
 #[derive(Debug)]
 pub enum GMapError {
@@ -15,6 +16,12 @@ pub enum GMapError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Dart(pub usize);
+
+impl fmt::Display for Dart {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{}", self.0)
+  }
+}
 
 /// Bitfield where bit i is 1 if alpha_i should be included as a generator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
