@@ -1,6 +1,7 @@
 pub mod grids;
 
 use std::collections::{HashMap, HashSet};
+use std::ops::Index;
 
 #[derive(Debug)]
 pub enum GMapError {
@@ -20,6 +21,12 @@ pub struct Dart(pub usize);
 pub struct Alphas(pub u32);
 
 impl Alphas {
+  pub const VERTEX: Self = Self(!1);
+  pub const EDGE: Self = Self(!2);
+  pub const HALF_EDGE: Self = Self(!3);
+  pub const FACE: Self = Self(!4);
+  pub const ANGLE: Self = Self(!5);
+
   #[inline(always)]
   pub fn cell(i: usize) -> Self {
     Self(!(1 << i))
@@ -128,10 +135,11 @@ impl GMap {
   }
 
   pub fn add_dart(&mut self) -> Dart {
+    let d = Dart(self.alpha.len());
     self
       .alpha
-      .push(vec![Dart(self.alpha.len()); self.dimension + 1]);
-    Dart(self.alpha.len() - 1)
+      .push(vec![d; self.dimension + 1]);
+    d
   }
 
   fn link(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<(), GMapError> {
@@ -289,6 +297,7 @@ impl GMap {
   }
 }
 
+/// Map from orbits to A.  Duplicates its values once for each dart in the orbit.
 pub struct OrbitMap<A> {
   map: HashMap<Dart, A>,
   indices: Alphas,
@@ -330,5 +339,62 @@ where
   pub fn remove(&mut self, g: &GMap, k: Dart) -> Option<A> {
     g.orbit(k, self.indices)
       .fold(None, |v, n| v.or(self.map.remove(&n)))
+  }
+}
+
+/// Maintains a single representative for each orbit.
+/// Can be potentially more efficient (but less convenient) than OrbitMap,
+/// especially when many maps over the same orbits are used.
+pub struct OrbitReprs(HashMap<Alphas, Vec<Dart>>);
+
+impl OrbitReprs {
+  pub fn new() -> Self {
+    Self(HashMap::new())
+  }
+
+  pub fn orbit_repr(&self, a: Alphas) -> Option<&[Dart]> {
+    self.0.get(&a).map(Vec::as_slice)
+  }
+
+  pub fn ensure_orbit_repr(&mut self, g: &GMap, a: Alphas) -> &[Dart] {
+    if !self.0.contains_key(&a) {
+      self.build_orbit_repr(g, a)
+    }
+    self.0.get(&a).unwrap()
+  }
+
+  /// (Re)build the orbit representative list for a-orbits.
+  fn build_orbit_repr(&mut self, g: &GMap, a: Alphas) {
+    let mut v = Vec::new();
+    let mut seen = HashSet::new();
+    for d in (0..g.alpha.len()).map(Dart) {
+      if seen.contains(&d) {
+        continue;
+      }
+      for n in g.orbit(d, a) {
+        seen.insert(n);
+        v[n.0] = d;
+      }
+    }
+    self.0.insert(a, v);
+  }
+
+  /// Set the orbit representative list for the a-cell at d to be d.
+  pub fn set_orbit_repr(&mut self, g: &GMap, a: Alphas, d: Dart) {
+    if !self.0.contains_key(&a) {
+      self.build_orbit_repr(g, a)
+    }
+    let v = self.0.get_mut(&a).unwrap();
+    for d1 in g.orbit(d, a) {
+      v[d1.0] = d;
+    }
+  }
+}
+
+impl Index<(Alphas, Dart)> for OrbitReprs {
+  type Output = Dart;
+
+  fn index(&self, (a, d): (Alphas, Dart)) -> &Self::Output {
+    &self.orbit_repr(a).unwrap()[d.0]
   }
 }
