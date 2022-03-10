@@ -1,10 +1,10 @@
-use crate::GMap;
+use crate::{Dart, GMap};
 
 use itertools::Itertools;
 
-pub fn new(n: usize, m: usize) -> (GMap, Vec<Vec<usize>>) {
+pub fn new(n: usize, m: usize) -> (GMap, Vec<Vec<Dart>>) {
   let mut g = GMap::empty(2).unwrap();
-  let rows: Vec<Vec<usize>> = (0..n)
+  let rows: Vec<Vec<Dart>> = (0..n)
     .map(|_| (0..m).map(|_| g.add_polygon(4)).collect())
     .collect();
   // Each square is the dart on the square's north edge, northwest vertex
@@ -23,7 +23,7 @@ pub fn new(n: usize, m: usize) -> (GMap, Vec<Vec<usize>>) {
   (g, rows)
 }
 
-pub fn vertex_grid(g: &GMap, squares: &[Vec<usize>]) -> Vec<Vec<usize>> {
+pub fn vertex_grid(g: &GMap, squares: &[Vec<Dart>]) -> Vec<Vec<Dart>> {
   squares
     .iter()
     .map(|row| {
