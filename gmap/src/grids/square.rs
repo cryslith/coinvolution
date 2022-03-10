@@ -3,7 +3,7 @@ use crate::GMap;
 use itertools::Itertools;
 
 pub fn new(n: usize, m: usize) -> (GMap, Vec<Vec<usize>>) {
-  let mut g = GMap::empty(2);
+  let mut g = GMap::empty(2).unwrap();
   let rows: Vec<Vec<usize>> = (0..n)
     .map(|_| (0..m).map(|_| g.add_polygon(4)).collect())
     .collect();

@@ -9,23 +9,46 @@ pub enum GMapError {
   Unsewable,
   NotFree,
   AlreadyFree,
+  DimensionTooLarge,
 }
 
-pub fn cell_indices(i: usize, dim: usize) -> Vec<usize> {
-  (0..=dim).filter(|&x| x != i).collect()
+// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+// pub struct Dart(pub usize);
+
+/// Bitfield where bit i is 1 if alpha_i should be included as a generator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Alphas(pub u32);
+
+impl Alphas {
+  #[inline(always)]
+  pub fn cell(i: usize) -> Self {
+    Self(!(1 << i))
+  }
+
+  #[inline(always)]
+  pub fn has(self, i: usize) -> bool {
+    (self.0 >> i) & 1 == 1
+  }
 }
+
+/// Maximum dimension allowed.  The memory requirement goes up exponentially with dimension, so 31 should be more than enough.
+pub const MAX_DIMENSION: usize = 31;
 
 pub struct GMap {
+  // This is a usize because we need to index by dimensions so often it's unwieldy to store it as something smaller.
   dimension: usize,
   alpha: Vec<Vec<usize>>,
 }
 
 impl GMap {
-  pub fn empty(dimension: usize) -> Self {
-    Self::from_alpha(dimension, vec![]).unwrap()
+  pub fn empty(dimension: usize) -> Result<Self, GMapError> {
+    Self::from_alpha(dimension, vec![])
   }
 
   pub fn from_alpha(dimension: usize, alpha: Vec<Vec<usize>>) -> Result<Self, GMapError> {
+    if dimension > MAX_DIMENSION {
+      return Err(GMapError::DimensionTooLarge);
+    }
     let g = GMap { dimension, alpha };
     g.check_valid()?;
     Ok(g)
@@ -94,9 +117,12 @@ impl GMap {
     if dim < self.dimension {
       return Err(GMapError::CannotDecreaseDimension);
     }
+    if dim > MAX_DIMENSION {
+      return Err(GMapError::DimensionTooLarge);
+    }
     self.dimension = dim;
     for (d, al) in self.alpha.iter_mut().enumerate() {
-      al.resize(dim, d);
+      al.resize(dim as usize, d);
     }
     Ok(())
   }
@@ -144,7 +170,7 @@ impl GMap {
     start
   }
 
-  pub fn orbit_paths(&self, d: usize, a: &[usize]) -> Vec<(Vec<usize>, usize)> {
+  pub fn orbit_paths(&self, d: usize, a: Alphas) -> Vec<(Vec<usize>, usize)> {
     let mut seen = HashSet::new();
     let mut frontier: Vec<(Vec<usize>, usize)> = vec![(vec![], d)];
     let mut orbit = Vec::new();
@@ -155,7 +181,10 @@ impl GMap {
       }
       seen.insert(dart);
       orbit.push((path.clone(), dart));
-      for &i in a {
+      for i in 0..=self.dimension {
+        if !a.has(i) {
+          continue;
+        }
         let neighbor = self.alpha[dart][i];
         let mut new_path = path.clone();
         new_path.push(i);
@@ -165,20 +194,20 @@ impl GMap {
     orbit
   }
 
-  pub fn orbit(&self, d: usize, a: &[usize]) -> impl Iterator<Item = usize> {
+  pub fn orbit(&self, d: usize, a: Alphas) -> impl Iterator<Item = usize> {
     self.orbit_paths(d, a).into_iter().map(|(_, d)| d)
   }
 
-  pub fn cell(&self, d: usize, i: usize, dim: Option<usize>) -> impl Iterator<Item = usize> {
-    self.orbit(d, &cell_indices(i, dim.unwrap_or(self.dimension)))
+  pub fn cell(&self, d: usize, i: usize) -> impl Iterator<Item = usize> {
+    self.orbit(d, Alphas::cell(i))
   }
 
+  /// Sew the i-cell at d0 to the i-cell at d1.
   pub fn sew(&mut self, i: usize, d0: usize, d1: usize) -> Result<Vec<(usize, usize)>, GMapError> {
-    let indices: Vec<usize> = (0..=self.dimension)
-      .filter(|x| (x.wrapping_sub(i) as isize).abs() > 1)
-      .collect();
-    let m0: HashMap<_, _> = self.orbit_paths(d0, &indices).into_iter().collect();
-    let mut m1: HashMap<_, _> = self.orbit_paths(d1, &indices).into_iter().collect();
+    // Only include indices with distance >1 from i.
+    let indices = Alphas(!(1 << i) & !((1 << i) >> 1) & !((1 << i) << 1));
+    let m0: HashMap<_, _> = self.orbit_paths(d0, indices).into_iter().collect();
+    let mut m1: HashMap<_, _> = self.orbit_paths(d1, indices).into_iter().collect();
     if m0.len() != m1.len() || m0.iter().any(|(x, _)| !m1.contains_key(x)) {
       return Err(GMapError::Unsewable);
     }
@@ -191,12 +220,11 @@ impl GMap {
     Ok(output)
   }
 
+  /// Unsew the pair of i-cells at d
   pub fn unsew(&mut self, d: usize, i: usize) -> Result<Vec<(usize, usize)>, GMapError> {
-    let indices: Vec<usize> = (0..=self.dimension)
-      .filter(|x| (x.wrapping_sub(i) as isize).abs() > 1)
-      .collect();
+    let indices = Alphas(!(1 << i) & !((1 << i) >> 1) & !((1 << i) << 1));
     let mut output = Vec::new();
-    for d0 in self.orbit(d, &indices) {
+    for d0 in self.orbit(d, indices) {
       let d1 = self.unlink(i, d0)?;
       output.push((d0, d1));
     }
@@ -207,14 +235,14 @@ impl GMap {
   pub fn unique_by_orbit<'a>(
     &'a self,
     l: impl IntoIterator<Item = usize> + 'a,
-    a: Vec<usize>,
+    a: Alphas,
   ) -> impl Iterator<Item = usize> + 'a {
     let mut seen = HashSet::new();
     l.into_iter().filter_map(move |dart| {
       if seen.contains(&dart) {
         return None;
       }
-      for n in self.orbit(dart, &a) {
+      for n in self.orbit(dart, a) {
         seen.insert(n);
       }
       Some(dart)
@@ -222,17 +250,13 @@ impl GMap {
   }
 
   /// one dart per a-orbit
-  pub fn one_dart_per_orbit<'a>(&'a self, a: Vec<usize>) -> impl Iterator<Item = usize> + 'a {
+  pub fn one_dart_per_orbit<'a>(&'a self, a: Alphas) -> impl Iterator<Item = usize> + 'a {
     self.unique_by_orbit(0..self.alpha.len(), a)
   }
 
-  /// one dart per i-cell (in dim)
-  pub fn one_dart_per_cell<'a>(
-    &'a self,
-    i: usize,
-    dim: Option<usize>,
-  ) -> impl Iterator<Item = usize> + 'a {
-    self.one_dart_per_orbit(cell_indices(i, dim.unwrap_or(self.dimension)))
+  /// one dart per i-cell
+  pub fn one_dart_per_cell<'a>(&'a self, i: usize) -> impl Iterator<Item = usize> + 'a {
+    self.one_dart_per_orbit(Alphas::cell(i))
   }
 
   /// one dart per a-orbit incident to d's b-orbit.
@@ -240,10 +264,10 @@ impl GMap {
   pub fn one_dart_per_incident_orbit<'a>(
     &'a self,
     d: usize,
-    a: Vec<usize>,
-    b: &[usize],
+    a: Alphas,
+    b: Alphas,
   ) -> impl Iterator<Item = usize> + 'a {
-    self.unique_by_orbit(self.orbit(d, &b), a)
+    self.unique_by_orbit(self.orbit(d, b), a)
   }
 
   /// one dart per i-cell (in dim) incident to d's j-cell (in dim).
@@ -253,31 +277,29 @@ impl GMap {
     d: usize,
     i: usize,
     j: usize,
-    dim: Option<usize>,
   ) -> impl Iterator<Item = usize> + 'a {
-    let dim = dim.unwrap_or(self.dimension);
-    self.one_dart_per_incident_orbit(d, cell_indices(i, dim), &cell_indices(j, dim))
+    self.one_dart_per_incident_orbit(d, Alphas::cell(i), Alphas::cell(j))
   }
 }
 
 pub struct OrbitMap<A> {
   map: HashMap<usize, A>,
-  indices: Vec<usize>,
+  indices: Alphas,
 }
 
 impl<A> OrbitMap<A>
 where
   A: Clone,
 {
-  pub fn new(indices: Vec<usize>) -> Self {
+  pub fn new(indices: Alphas) -> Self {
     Self {
       map: HashMap::new(),
       indices,
     }
   }
 
-  pub fn over_cells(i: usize, dim: usize) -> Self {
-    Self::new(cell_indices(i, dim))
+  pub fn over_cells(i: usize) -> Self {
+    Self::new(Alphas::cell(i))
   }
 
   pub fn map(&self) -> &HashMap<usize, A> {
@@ -288,18 +310,18 @@ where
     self.map
   }
 
-  pub fn indices(&self) -> &[usize] {
-    &self.indices
+  pub fn indices(&self) -> Alphas {
+    self.indices
   }
 
   pub fn insert(&mut self, g: &GMap, k: usize, v: A) {
-    for n in g.orbit(k, &self.indices) {
+    for n in g.orbit(k, self.indices) {
       self.map.insert(n, v.clone());
     }
   }
 
   pub fn remove(&mut self, g: &GMap, k: usize) -> Option<A> {
-    g.orbit(k, &self.indices)
+    g.orbit(k, self.indices)
       .fold(None, |v, n| v.or(self.map.remove(&n)))
   }
 }
