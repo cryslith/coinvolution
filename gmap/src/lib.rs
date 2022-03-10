@@ -136,9 +136,7 @@ impl GMap {
 
   pub fn add_dart(&mut self) -> Dart {
     let d = Dart(self.alpha.len());
-    self
-      .alpha
-      .push(vec![d; self.dimension + 1]);
+    self.alpha.push(vec![d; self.dimension + 1]);
     d
   }
 
