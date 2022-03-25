@@ -5,6 +5,7 @@ members = [
     "coin-web",
     "graph-folding",
     "graph-folding-web",
+    "folding",
 ]
 
 
