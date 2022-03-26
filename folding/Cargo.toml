@@ -6,4 +6,6 @@ edition = "2018"
 
 [dependencies]
 gmap = { path = "../gmap" }
-na = { package = "nalgebra", version = "0.30.1"}
+na = { package = "nalgebra", version = "0.30"}
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
