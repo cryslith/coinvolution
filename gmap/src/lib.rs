@@ -21,7 +21,7 @@ pub enum GMapError {
   Unsewable,
   #[error("Darts are not unsewable")]
   Ununsewable,
-  #[error("Dart is not free")]
+  #[error("Dart to be linked is not free")]
   NotFree,
   #[error("Dart is already free")]
   AlreadyFree,
@@ -426,7 +426,8 @@ impl GMap {
     self.orbit(d, Alphas::cell(i))
   }
 
-  /// Sew the i-cell at d0 to the i-cell at d1.
+  /// Sew the i-cell at d0 to the i-cell at d1,
+  /// so that they share an incident (i - 1)-cell.
   /// Returns a mapping of pairs of darts which were sewn.
   pub fn sew(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<HashMap<Dart, Dart>, GMapError> {
     // Only include indices with distance >1 from i.
