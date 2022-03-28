@@ -1,7 +1,6 @@
 /// Implementation of the FOLD spec.
 /// See https://github.com/edemaine/fold/blob/main/doc/spec.md
-
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
@@ -46,20 +45,25 @@ pub struct Frame {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
   use super::*;
 
   use std::fs::File;
   use std::io::BufReader;
   use std::path::PathBuf;
 
-  #[test]
-  fn load_diagonal_cp() {
+  pub(crate) fn load_example(name: &str) -> Fold {
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push("resources/fold-examples/diagonal-cp.fold");
+    d.push("resources/fold-examples/");
+    d.push(name);
     let file = File::open(d).unwrap();
     let reader = BufReader::new(file);
-    let f: Fold = serde_json::from_reader(reader).unwrap();
+    serde_json::from_reader(reader).unwrap()
+  }
+
+  #[test]
+  fn load_diagonal_cp() {
+    let f = load_example("diagonal-cp.fold");
     assert_eq!(f.file_creator, "Crease Pattern Editor");
   }
 }

@@ -14,6 +14,10 @@ pub enum Error {
   FoldMissingField(String),
   #[error("FOLD input must be a manifold")]
   FoldNonManifold,
+  #[error("FOLD input contains invalid coordinates")]
+  FoldBadCoordinates,
+  #[error("FOLD input contains invalid angle assignment")]
+  FoldBadAngle,
   #[error("FOLD file references nonexistent {0} at index {1}")]
   FoldInvalidReference(String, usize),
 }
@@ -24,7 +28,7 @@ pub struct CreasePattern {
   /// True if the dart points counterclockwise within its face, false if it points clockwise.  This determines the direction of the face normal according to the right hand rule.
   orientation: HashMap<Dart, bool>,
   /// Location of each vertex in the unfolded crease pattern.
-  vertices_coords: HashMap<Dart, Point2<f64>>,
+  vertices_coords: OrbitMap<Point2<f64>>,
   /// Angle of each edge in the range [-180, 180] degrees.
   /// Positive angles point the face normals towards each other.
   fold_angle: OrbitMap<f64>,
@@ -38,8 +42,8 @@ pub struct FoldTracking {
 }
 
 impl CreasePattern {
-  pub fn from(fold: format::Fold) -> Result<(Self, FoldTracking), Error> {
-    let f = fold.key_frame;
+  pub fn from(fold: &format::Fold) -> Result<(Self, FoldTracking), Error> {
+    let f = &fold.key_frame;
     let mut g = GMap::empty(2)?;
     // these contain only counterclockwise darts
     let mut face_to_dart: HashMap<usize, Dart> = HashMap::new();
@@ -78,6 +82,7 @@ impl CreasePattern {
 
     // now glue the polygons together along their edges
     for (edge, faces) in f.edges_faces.iter().enumerate() {
+      // let faces: Vec<usize> = faces.iter().map(|x| x.unwrap()).collect();
       if faces.len() < 1 || faces.len() > 2 {
         return Err(Error::FoldNonManifold);
       }
@@ -97,12 +102,56 @@ impl CreasePattern {
     }
 
     // extract vertex coordinates
-    let vertices_coords: HashMap<Dart, Point2<f64>> = HashMap::new();
-    todo!();
+    let mut vertices_coords: OrbitMap<Point2<f64>> = OrbitMap::over_cells(1);
+    for (vertex, coords) in f.vertices_coords.iter().enumerate() {
+      let &d = vertex_to_dart
+        .get(&vertex)
+        .ok_or_else(|| Error::FoldInvalidReference("vertex".to_string(), vertex))?;
+      if coords.len() < 2 || coords.len() > 3 || (coords.len() == 3 && coords[2] != 0f64) {
+        return Err(Error::FoldBadCoordinates);
+      }
+      let p = Point2::new(coords[0], coords[1]);
+      vertices_coords.insert(&g, d, p);
+    }
 
     // and fold angle
-    let fold_angle: OrbitMap<f64> = OrbitMap::over_cells(1);
-    todo!();
+    fn interpret_assignment(a: &String) -> Result<Option<f64>, Error> {
+      Ok(Some(match &a[..] {
+        "B" => return Ok(None),
+        "M" => -180f64,
+        "V" => 180f64,
+        "F" => 0f64,
+        _ => return Err(Error::FoldBadAngle),
+      }))
+    }
+    // check that there are no unassigned or malformed angles
+    f.edges_assignment
+      .iter()
+      .map(|x| interpret_assignment(x).map(|_| ()))
+      .fold(Ok(()), |r, a| r.and(a))?;
+    let mut angles_from_assignment = f
+      .edges_assignment
+      .iter()
+      .enumerate()
+      .filter_map(|(i, a)| interpret_assignment(a).unwrap().map(|x| (i, x)));
+    let mut angles_specified = f.edges_fold_angle.iter().copied().enumerate();
+    let edges_fold_angle: &mut dyn Iterator<Item = (usize, f64)> = if f.edges_fold_angle.is_empty()
+    {
+      &mut angles_from_assignment
+    } else {
+      &mut angles_specified
+    };
+
+    let mut fold_angle: OrbitMap<f64> = OrbitMap::over_cells(1);
+    for (edge, angle) in edges_fold_angle {
+      let &d = edge_to_dart
+        .get(&edge)
+        .ok_or_else(|| Error::FoldInvalidReference("edge".to_string(), edge))?;
+      if angle < -180f64 || angle > 180f64 {
+        return Err(Error::FoldBadAngle);
+      }
+      fold_angle.insert(&g, d, angle);
+    }
 
     let cp = CreasePattern {
       g,
@@ -118,5 +167,43 @@ impl CreasePattern {
     };
 
     Ok((cp, ft))
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  use format::tests::load_example;
+
+  // todo: this is an integration test not a unit test; move it somewhere else and add an actual unit test
+  #[test]
+  fn parse_diagonal_cp() {
+    let f = load_example("diagonal-cp.fold");
+    let (cp, ft) = CreasePattern::from(&f).unwrap();
+    let nverts = cp.g.one_dart_per_cell(0).count();
+    let nedges = cp.g.one_dart_per_cell(1).count();
+    let nfaces = cp.g.one_dart_per_cell(2).count();
+    assert_eq!(nverts, 4);
+    assert_eq!(nedges, 5);
+    assert_eq!(nfaces, 2);
+
+    for i in 0..4 {
+      let v = ft.vertex_to_dart[&i];
+      assert_eq!(cp.orientation[&v], true);
+      assert_eq!(cp.orientation[&cp.g.al(v, [0])], false);
+
+      let expected = match i {
+        0 => Point2::new(0.0, 0.0),
+        1 => Point2::new(1.0, 0.0),
+        2 => Point2::new(1.0, 1.0),
+        3 => Point2::new(0.0, 1.0),
+        _ => panic!(),
+      };
+      assert_eq!(cp.vertices_coords.map()[&v], expected);
+    }
+
+    let e = ft.edge_to_dart[&4];
+    assert_eq!(cp.fold_angle.map()[&e], 180f64);
   }
 }
