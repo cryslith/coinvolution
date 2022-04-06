@@ -1,9 +1,10 @@
+mod convex;
 mod format;
 
 use std::collections::HashMap;
 
 use gmap::{Dart, GMap, OrbitMap};
-use na::Point2;
+use na::{Point2, Point3};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -168,6 +169,13 @@ impl CreasePattern {
 
     Ok((cp, ft))
   }
+}
+
+pub struct FoldedState {
+  cp: CreasePattern,
+  /// Locations of vertices in folded state
+  folded_coords: OrbitMap<Point3<f64>>,
+  // layers: ?
 }
 
 #[cfg(test)]
