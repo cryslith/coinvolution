@@ -14,7 +14,7 @@ pub enum GMapError {
   DimensionTooLarge,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Dart(pub usize);
 
 impl fmt::Display for Dart {
@@ -347,7 +347,7 @@ where
   }
 }
 
-/// Maintains a single representative for each orbit.
+/// Maintains a single representative for each orbit, defined as the lowest-numbered dart for that orbit.
 /// Can be potentially more efficient (but less convenient) than OrbitMap,
 /// especially when many maps over the same orbits are used.
 pub struct OrbitReprs(HashMap<Alphas, Vec<Dart>>);
@@ -357,19 +357,30 @@ impl OrbitReprs {
     Self(HashMap::new())
   }
 
-  pub fn orbit_repr(&self, a: Alphas) -> Option<&[Dart]> {
+  pub fn try_orbit_repr(&self, a: Alphas, d: Dart) -> Option<Dart> {
+    self.0.get(&a).map(|v| v[d.0])
+  }
+
+  pub fn orbit_repr(&self, g: &GMap, a: Alphas, d: Dart) -> Dart {
+    if let Some(r) = self.try_orbit_repr(a, d) {
+      return r;
+    }
+    g.orbit(d, a).min().unwrap()
+  }
+
+  pub fn try_orbit_reprs(&self, a: Alphas) -> Option<&[Dart]> {
     self.0.get(&a).map(Vec::as_slice)
   }
 
-  pub fn ensure_orbit_repr(&mut self, g: &GMap, a: Alphas) -> &[Dart] {
+  pub fn ensure_orbit_reprs(&mut self, g: &GMap, a: Alphas) -> &[Dart] {
     if !self.0.contains_key(&a) {
-      self.build_orbit_repr(g, a)
+      self.build_orbit_reprs(g, a)
     }
     self.0.get(&a).unwrap()
   }
 
   /// (Re)build the orbit representative list for a-orbits.
-  fn build_orbit_repr(&mut self, g: &GMap, a: Alphas) {
+  pub fn build_orbit_reprs(&mut self, g: &GMap, a: Alphas) {
     let mut v = Vec::new();
     let mut seen = HashSet::new();
     for d in (0..g.alpha.len()).map(Dart) {
@@ -383,23 +394,12 @@ impl OrbitReprs {
     }
     self.0.insert(a, v);
   }
-
-  /// Set the orbit representative list for the a-cell at d to be d.
-  pub fn set_orbit_repr(&mut self, g: &GMap, a: Alphas, d: Dart) {
-    if !self.0.contains_key(&a) {
-      self.build_orbit_repr(g, a)
-    }
-    let v = self.0.get_mut(&a).unwrap();
-    for d1 in g.orbit(d, a) {
-      v[d1.0] = d;
-    }
-  }
 }
 
 impl Index<(Alphas, Dart)> for OrbitReprs {
   type Output = Dart;
 
   fn index(&self, (a, d): (Alphas, Dart)) -> &Self::Output {
-    &self.orbit_repr(a).unwrap()[d.0]
+    &self.try_orbit_reprs(a).unwrap()[d.0]
   }
 }
