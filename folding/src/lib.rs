@@ -38,6 +38,7 @@ pub struct CreasePattern {
 
 /// information connecting the crease pattern to a FOLD file.
 pub struct FoldTracking {
+  // XXX shouldn't these be vectors?
   face_to_dart: HashMap<usize, Dart>,
   edge_to_dart: HashMap<usize, Dart>,
   vertex_to_dart: HashMap<usize, Dart>,
@@ -84,7 +85,12 @@ impl CreasePattern {
 
     // now glue the polygons together along their edges
     for (edge, faces) in f.edges_faces.iter().enumerate() {
-      // let faces: Vec<usize> = faces.iter().map(|x| x.unwrap()).collect();
+      panic!("fix this bug");
+      // BUG: this glues wrong!  it glues the right faces together,
+      // but at the wrong edges!  need to use faces_edges to
+      // identify edge-dart correspondences during the above loop
+      // if we do the gluing then too.
+      // we can also eliminate the dependence on edges_faces this way
       if faces.len() < 1 || faces.len() > 2 {
         return Err(Error::FoldNonManifold);
       }
@@ -181,20 +187,25 @@ pub struct FoldedState {
 }
 
 impl FoldedState {
-  pub fn from(cp: CreasePattern) -> Self {
+  pub fn from(cp: CreasePattern, fixed_face: Dart) -> Self {
     let g = &cp.g;
     let mut folded_coords: OrbitMap<Point3<f64>> = OrbitMap::over_cells(0);
     let mut seen_edges: OrbitMap<()> = OrbitMap::over_cells(1);
     let mut isometries: OrbitMap<Isometry3<f64>> = OrbitMap::over_cells(2);
 
     let mut frontier: VecDeque<Dart> = VecDeque::new();
-    let first_face = if cp.orientation[&Dart(0)] {
-      Dart(0)
+    let fixed_face = if cp.orientation[&fixed_face] {
+      fixed_face
     } else {
-      g.al(Dart(0), [0])
+      g.al(fixed_face, [0])
     };
-    frontier.push_back(first_face);
-    isometries.insert(g, first_face, Isometry3::identity());
+    frontier.push_back(fixed_face);
+    isometries.insert(g, fixed_face, Isometry3::identity());
+    for vertex in g.one_dart_per_incident_cell(fixed_face, 0, 2) {
+      let p_v = cp.vertices_coords.map()[&vertex];
+      let p_v = Point3::new(p_v.x, p_v.y, 0.0);
+      folded_coords.insert(g, vertex, p_v);
+    }
 
     while !frontier.is_empty() {
       let my_face = frontier.pop_front().unwrap();
@@ -226,7 +237,7 @@ impl FoldedState {
               if !folded_coords.map().contains_key(&vertex) {
                 let p_v = cp.vertices_coords.map()[&vertex];
                 let p_v = Point3::new(p_v.x, p_v.y, 0.0);
-                folded_coords.insert(g, vertex, p_v);
+                folded_coords.insert(g, vertex, other_isometry * p_v);
               }
             }
             frontier.push_back(other_face);
@@ -292,6 +303,31 @@ mod tests {
   fn fold_diagonal_cp_unchecked() {
     let f = load_example("diagonal-cp.fold");
     let (cp, ft) = CreasePattern::from(&f).unwrap();
-    let fs = FoldedState::from(cp);
+    let FoldTracking {
+      vertex_to_dart: vertices,
+      edge_to_dart: edges,
+      face_to_dart: faces,
+    } = ft;
+
+    let fs = FoldedState::from(cp, faces[&0]);
+    assert_eq!(
+      fs.folded_coords.map()[&vertices[&0]],
+      Point3::new(0.0, 0.0, 0.0)
+    );
+    assert_eq!(
+      fs.folded_coords.map()[&vertices[&1]],
+      Point3::new(1.0, 0.0, 0.0)
+    );
+    assert_eq!(
+      fs.folded_coords.map()[&vertices[&3]],
+      Point3::new(0.0, 1.0, 0.0)
+    );
+
+    assert!(
+      na::distance(
+        &fs.folded_coords.map()[&vertices[&2]],
+        &Point3::new(0.0, 0.0, 0.0)
+      ) < 0.001
+    );
   }
 }
