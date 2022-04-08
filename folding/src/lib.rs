@@ -176,7 +176,6 @@ impl CreasePattern {
 }
 
 pub struct FoldedState {
-  cp: CreasePattern,
   /// Locations of vertices in folded state
   folded_coords: OrbitMap<Point3<f64>>,
   face_isometries: OrbitMap<Isometry3<f64>>,
@@ -184,7 +183,7 @@ pub struct FoldedState {
 }
 
 impl FoldedState {
-  pub fn from(cp: CreasePattern, fixed_face: Dart) -> Self {
+  pub fn from(cp: &CreasePattern, fixed_face: Dart) -> Self {
     let g = &cp.g;
     let mut folded_coords: OrbitMap<Point3<f64>> = OrbitMap::over_cells(0);
     let mut seen_edges: OrbitMap<()> = OrbitMap::over_cells(1);
@@ -251,7 +250,6 @@ impl FoldedState {
     }
 
     Self {
-      cp,
       folded_coords,
       face_isometries: isometries,
     }
@@ -301,14 +299,14 @@ mod tests {
   #[test]
   fn fold_diagonal_cp_unchecked() {
     let f = load_example("diagonal-cp.fold");
-    let (cp, ft) = CreasePattern::from(&f).unwrap();
+    let (mut cp, ft) = CreasePattern::from(&f).unwrap();
     let FoldTracking {
       vertex_to_dart: vertices,
       edge_to_dart: edges,
       face_to_dart: faces,
     } = ft;
 
-    let fs = FoldedState::from(cp, faces[&0]);
+    let fs = FoldedState::from(&cp, faces[&0]);
     assert_eq!(
       fs.folded_coords.map()[&vertices[&0]],
       Point3::new(0.0, 0.0, 0.0)
@@ -327,6 +325,32 @@ mod tests {
         &fs.folded_coords.map()[&vertices[&2]],
         &Point3::new(0.0, 0.0, 0.0)
       ) < 0.001
+    );
+
+    // now fold at a different angle
+    cp.fold_angle.insert(&cp.g, edges[&4], -30.0);
+    let fs = FoldedState::from(&cp, faces[&0]);
+    assert_eq!(
+      fs.folded_coords.map()[&vertices[&0]],
+      Point3::new(0.0, 0.0, 0.0)
+    );
+    assert_eq!(
+      fs.folded_coords.map()[&vertices[&1]],
+      Point3::new(1.0, 0.0, 0.0)
+    );
+    assert_eq!(
+      fs.folded_coords.map()[&vertices[&3]],
+      Point3::new(0.0, 1.0, 0.0)
+    );
+
+    assert!(
+      na::distance(
+        &fs.folded_coords.map()[&vertices[&2]],
+        &Point3::new(0.933, 0.933, -0.353553391)
+      ) < 0.001,
+      "left = {}, right = {}",
+      &fs.folded_coords.map()[&vertices[&2]],
+      &Point3::new(0.933, 0.933, -0.353553391),
     );
   }
 }
