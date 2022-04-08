@@ -1,10 +1,11 @@
 mod convex;
 mod format;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::f64::consts::PI;
 
 use gmap::{Dart, GMap, OrbitMap};
-use na::{Point2, Point3};
+use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -35,7 +36,7 @@ pub struct CreasePattern {
   fold_angle: OrbitMap<f64>,
 }
 
-/// information connecting the crease pattern to a FOLD file
+/// information connecting the crease pattern to a FOLD file.
 pub struct FoldTracking {
   face_to_dart: HashMap<usize, Dart>,
   edge_to_dart: HashMap<usize, Dart>,
@@ -175,7 +176,79 @@ pub struct FoldedState {
   cp: CreasePattern,
   /// Locations of vertices in folded state
   folded_coords: OrbitMap<Point3<f64>>,
+  face_isometries: OrbitMap<Isometry3<f64>>,
   // layers: ?
+}
+
+impl FoldedState {
+  pub fn from(cp: CreasePattern) -> Self {
+    let g = &cp.g;
+    let mut folded_coords: OrbitMap<Point3<f64>> = OrbitMap::over_cells(0);
+    let mut seen_edges: OrbitMap<()> = OrbitMap::over_cells(1);
+    let mut isometries: OrbitMap<Isometry3<f64>> = OrbitMap::over_cells(2);
+
+    let mut frontier: VecDeque<Dart> = VecDeque::new();
+    let first_face = if cp.orientation[&Dart(0)] {
+      Dart(0)
+    } else {
+      g.al(Dart(0), [0])
+    };
+    frontier.push_back(first_face);
+    isometries.insert(g, first_face, Isometry3::identity());
+
+    while !frontier.is_empty() {
+      let my_face = frontier.pop_front().unwrap();
+      let my_isometry = isometries.map()[&my_face];
+
+      // loop over counterclockwise darts of my_face
+      let mut edge = my_face;
+      loop {
+        if !seen_edges.map().contains_key(&edge) && !g.is_free(edge, 2) {
+          let other_face = g.al(edge, [2, 0]);
+          let other_isometry: Isometry3<f64> = {
+            let p = cp.vertices_coords.map()[&edge];
+            let q = cp.vertices_coords.map()[&other_face];
+            let p = Point3::new(p.x, p.y, 0.0);
+            let q = Point3::new(q.x, q.y, 0.0);
+            let fold_angle_deg = cp.fold_angle.map()[&edge];
+            let axis = Unit::new_normalize(q - p);
+            // here we use the fact that edge is counterclockwise
+            // to get the correct sign on the angle
+            let rot_angle_rad = (180.0 - fold_angle_deg) * PI / 180.0;
+            let rotation = Rotation3::from_axis_angle(&axis, rot_angle_rad);
+            let r1 = Isometry3::rotation_wrt_point(UnitQuaternion::from(rotation), p);
+            my_isometry * r1
+          };
+          if let Some(old_other_isometry) = isometries.map().get(&other_face) {
+            todo!("check old isometry matches new one")
+          } else {
+            isometries.insert(g, other_face, other_isometry);
+            for vertex in g.one_dart_per_incident_cell(other_face, 0, 2) {
+              if !folded_coords.map().contains_key(&vertex) {
+                let p_v = cp.vertices_coords.map()[&vertex];
+                let p_v = Point3::new(p_v.x, p_v.y, 0.0);
+                folded_coords.insert(g, vertex, p_v);
+              }
+            }
+            frontier.push_back(other_face);
+          }
+
+          seen_edges.insert(g, edge, ());
+        }
+
+        edge = g.al(edge, [1, 0]);
+        if edge == my_face {
+          break;
+        }
+      }
+    }
+
+    Self {
+      cp,
+      folded_coords,
+      face_isometries: isometries,
+    }
+  }
 }
 
 #[cfg(test)]
@@ -184,7 +257,8 @@ mod tests {
 
   use format::tests::load_example;
 
-  // todo: this is an integration test not a unit test; move it somewhere else and add an actual unit test
+  // todo: these are integration tests not unit tests; move them somewhere else and add an actual unit test
+
   #[test]
   fn parse_diagonal_cp() {
     let f = load_example("diagonal-cp.fold");
@@ -213,5 +287,12 @@ mod tests {
 
     let e = ft.edge_to_dart[&4];
     assert_eq!(cp.fold_angle.map()[&e], 180f64);
+  }
+
+  #[test]
+  fn fold_diagonal_cp_unchecked() {
+    let f = load_example("diagonal-cp.fold");
+    let (cp, ft) = CreasePattern::from(&f).unwrap();
+    let fs = FoldedState::from(cp);
   }
 }
