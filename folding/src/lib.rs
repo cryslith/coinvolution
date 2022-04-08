@@ -4,7 +4,7 @@ mod format;
 use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
 
-use gmap::{Dart, GMap, OrbitMap};
+use gmap::{Dart, GMap, OrbitMap, Alphas};
 use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion};
 use thiserror::Error;
 
@@ -107,7 +107,7 @@ impl CreasePattern {
     }
 
     // extract vertex coordinates
-    let mut vertices_coords: OrbitMap<Point2<f64>> = OrbitMap::over_cells(1);
+    let mut vertices_coords: OrbitMap<Point2<f64>> = OrbitMap::over_cells(0);
     for (vertex, coords) in f.vertices_coords.iter().enumerate() {
       let &d = vertex_to_dart
         .get(&vertex)
@@ -276,6 +276,8 @@ mod tests {
     assert_eq!(nverts, 4);
     assert_eq!(nedges, 5);
     assert_eq!(nfaces, 2);
+    assert_eq!(cp.vertices_coords.indices(), Alphas::VERTEX);
+    assert_eq!(cp.fold_angle.indices(), Alphas::EDGE);
 
     for i in 0..4 {
       let v = ft.vertex_to_dart[&i];
