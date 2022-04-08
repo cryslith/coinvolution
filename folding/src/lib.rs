@@ -22,6 +22,8 @@ pub enum Error {
   FoldBadAngle,
   #[error("FOLD file references nonexistent {0} at index {1}")]
   FoldInvalidReference(String, usize),
+  #[error("FOLD file has incompatible face data for face {0}")]
+  FoldBadFace(usize),
 }
 
 pub struct CreasePattern {
@@ -57,7 +59,7 @@ impl CreasePattern {
 
     for (n, v) in [
       ("faces_vertices", f.faces_vertices.is_empty()),
-      ("edges_faces", f.edges_faces.is_empty()),
+      ("faces_edges", f.faces_edges.is_empty()),
       ("vertices_coords", f.vertices_coords.is_empty()),
       (
         "edges_assignment or edges_foldAngle",
@@ -69,44 +71,39 @@ impl CreasePattern {
       }
     }
 
-    // first make polygons for all the faces
-    for (face, vertices) in f.faces_vertices.iter().enumerate() {
+    for (face, (vertices, edges)) in f.faces_vertices.iter().zip(f.faces_edges.iter()).enumerate() {
+      if vertices.len() != edges.len() {
+        return Err(Error::FoldBadFace(face));
+      }
+
+      // make polygon for each face
       let mut d = g.add_polygon(vertices.len());
       face_to_dart.insert(face, d);
-      for &vertex in vertices.iter() {
+
+      // assign vertices and assign+sew edges.
+      // recall from the FOLD spec that vertices are listed in counterclockwise order
+      // and edges[i] connects vertices[i] to vertices[i+1].
+      for (&vertex, &edge) in vertices.iter().zip(edges.iter()) {
+        // d is the counterclockwise dart for vertices[i]
         if !vertex_to_dart.contains_key(&vertex) {
           vertex_to_dart.insert(vertex, d);
         }
         orientation.insert(d, true);
         orientation.insert(g.al(d, [1]), false);
-        d = g.al(d, [1, 0]);
-      }
-    }
 
-    // now glue the polygons together along their edges
-    for (edge, faces) in f.edges_faces.iter().enumerate() {
-      panic!("fix this bug");
-      // BUG: this glues wrong!  it glues the right faces together,
-      // but at the wrong edges!  need to use faces_edges to
-      // identify edge-dart correspondences during the above loop
-      // if we do the gluing then too.
-      // we can also eliminate the dependence on edges_faces this way
-      if faces.len() < 1 || faces.len() > 2 {
-        return Err(Error::FoldNonManifold);
+        d = g.al(d, [1, 0]);
+
+        // edges[i] connects vertices[i] to vertices[i+1], so now d = al(vertices[i], [1, 0]) is
+        // the counterclockwise dart for both edges[i] and vertices[i+1]
+
+        if let Some(&other_edge) = edge_to_dart.get(&edge) {
+          // sew our edge to the other edge
+          // reverse before sewing because both darts are counterclockwise
+          g.sew(2, d, g.al(other_edge, [0]))?;
+        } else {
+          edge_to_dart.insert(edge, d);
+        }
       }
-      let &d = face_to_dart
-        .get(&faces[0])
-        .ok_or_else(|| Error::FoldInvalidReference("face".to_string(), faces[0]))?;
-      edge_to_dart.insert(edge, d);
-      if faces.len() == 1 {
-        continue;
-      }
-      let &d2 = face_to_dart
-        .get(&faces[1])
-        .ok_or_else(|| Error::FoldInvalidReference("face".to_string(), faces[1]))?;
-      // reverse d2 before sewing to keep the orientation correct,
-      // since both of them are counterclockwise
-      g.sew(2, d, g.al(d2, [0]))?;
     }
 
     // extract vertex coordinates
