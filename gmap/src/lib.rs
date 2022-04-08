@@ -148,7 +148,7 @@ impl GMap {
   }
 
   pub fn is_free(&self, d: Dart, i: usize) -> bool {
-    self.alpha[d.0][i] != d
+    self.alpha[d.0][i] == d
   }
 
   fn link(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<(), GMapError> {
