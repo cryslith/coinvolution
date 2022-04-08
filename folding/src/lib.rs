@@ -210,12 +210,11 @@ impl FoldedState {
             let q = cp.vertices_coords.map()[&other_face];
             let p = Point3::new(p.x, p.y, 0.0);
             let q = Point3::new(q.x, q.y, 0.0);
-            let fold_angle_deg = cp.fold_angle.map()[&edge];
-            let axis = Unit::new_normalize(q - p);
             // here we use the fact that edge is counterclockwise
             // to get the correct sign on the angle
-            let rot_angle_rad = (180.0 - fold_angle_deg) * PI / 180.0;
-            let rotation = Rotation3::from_axis_angle(&axis, rot_angle_rad);
+            let fold_angle_rad = cp.fold_angle.map()[&edge] * PI / 180.0;
+            let axis = Unit::new_normalize(q - p);
+            let rotation = Rotation3::from_axis_angle(&axis, fold_angle_rad);
             let r1 = Isometry3::rotation_wrt_point(UnitQuaternion::from(rotation), p);
             my_isometry * r1
           };
