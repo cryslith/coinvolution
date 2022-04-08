@@ -147,6 +147,10 @@ impl GMap {
     d
   }
 
+  pub fn is_free(&self, d: Dart, i: usize) -> bool {
+    self.alpha[d.0][i] != d
+  }
+
   fn link(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<(), GMapError> {
     if self.alpha[d0.0][i] != d0 {
       return Err(GMapError::NotFree);
@@ -190,6 +194,7 @@ impl GMap {
   /// which is the sequence of indices (taken from a) from d to d1.
   pub fn orbit_paths(&self, d: Dart, a: Alphas) -> Vec<(Vec<usize>, Dart)> {
     let mut seen = HashSet::new();
+    // XXX should be vecdeque?
     let mut frontier: Vec<(Vec<usize>, Dart)> = vec![(vec![], d)];
     let mut orbit = Vec::new();
     while !frontier.is_empty() {
