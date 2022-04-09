@@ -4,9 +4,12 @@ mod format;
 use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
 
-use gmap::{Dart, GMap, OrbitMap, Alphas};
+use gmap::{Alphas, Dart, GMap, OrbitMap};
 use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion};
 use thiserror::Error;
+
+const ANGLE_EPSILON: f64 = 0.001;
+const LENGTH_EPSILON: f64 = 0.001;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -24,6 +27,8 @@ pub enum Error {
   FoldInvalidReference(String, usize),
   #[error("FOLD file has incompatible face data for face {0}")]
   FoldBadFace(usize),
+  #[error("Folding found distinct isometries for face dart {0}")]
+  DistinctIsometries(Dart),
 }
 
 pub struct CreasePattern {
@@ -71,7 +76,12 @@ impl CreasePattern {
       }
     }
 
-    for (face, (vertices, edges)) in f.faces_vertices.iter().zip(f.faces_edges.iter()).enumerate() {
+    for (face, (vertices, edges)) in f
+      .faces_vertices
+      .iter()
+      .zip(f.faces_edges.iter())
+      .enumerate()
+    {
       if vertices.len() != edges.len() {
         return Err(Error::FoldBadFace(face));
       }
@@ -183,7 +193,7 @@ pub struct FoldedState {
 }
 
 impl FoldedState {
-  pub fn from(cp: &CreasePattern, fixed_face: Dart) -> Self {
+  pub fn from(cp: &CreasePattern, fixed_face: Dart) -> Result<Self, Error> {
     let g = &cp.g;
     let mut folded_coords: OrbitMap<Point3<f64>> = OrbitMap::over_cells(0);
     let mut seen_edges: OrbitMap<()> = OrbitMap::over_cells(1);
@@ -226,7 +236,13 @@ impl FoldedState {
             my_isometry * r1
           };
           if let Some(old_other_isometry) = isometries.map().get(&other_face) {
-            todo!("check old isometry matches new one")
+            // check the old isometry matches the new one.
+            let i = other_isometry.inv_mul(old_other_isometry);
+            let angle = i.rotation.angle();
+            let length = i.translation.vector.magnitude_squared();
+            if angle.abs() > ANGLE_EPSILON || length > LENGTH_EPSILON {
+              return Err(Error::DistinctIsometries(my_face));
+            }
           } else {
             isometries.insert(g, other_face, other_isometry);
             for vertex in g.one_dart_per_incident_cell(other_face, 0, 2) {
@@ -249,10 +265,10 @@ impl FoldedState {
       }
     }
 
-    Self {
+    Ok(Self {
       folded_coords,
       face_isometries: isometries,
-    }
+    })
   }
 }
 
@@ -306,7 +322,7 @@ mod tests {
       face_to_dart: faces,
     } = ft;
 
-    let fs = FoldedState::from(&cp, faces[&0]);
+    let fs = FoldedState::from(&cp, faces[&0]).unwrap();
     assert_eq!(
       fs.folded_coords.map()[&vertices[&0]],
       Point3::new(0.0, 0.0, 0.0)
@@ -329,7 +345,7 @@ mod tests {
 
     // now fold at a different angle
     cp.fold_angle.insert(&cp.g, edges[&4], -30.0);
-    let fs = FoldedState::from(&cp, faces[&0]);
+    let fs = FoldedState::from(&cp, faces[&0]).unwrap();
     assert_eq!(
       fs.folded_coords.map()[&vertices[&0]],
       Point3::new(0.0, 0.0, 0.0)
@@ -352,5 +368,75 @@ mod tests {
       &fs.folded_coords.map()[&vertices[&2]],
       &Point3::new(0.933, 0.933, -0.353553391),
     );
+  }
+
+  #[test]
+  fn parse_triangle_cp() {
+    let f = load_example("triangle.fold");
+    let (cp, ft) = CreasePattern::from(&f).unwrap();
+    let nverts = cp.g.one_dart_per_cell(0).count();
+    let nedges = cp.g.one_dart_per_cell(1).count();
+    let nfaces = cp.g.one_dart_per_cell(2).count();
+    assert_eq!(nverts, 5);
+    assert_eq!(nedges, 8);
+    assert_eq!(nfaces, 4);
+  }
+
+  #[test]
+  fn fold_triangle_unchecked() {
+    let f = load_example("triangle.fold");
+    let (mut cp, ft) = CreasePattern::from(&f).unwrap();
+    let FoldTracking {
+      vertex_to_dart: vertices,
+      edge_to_dart: edges,
+      face_to_dart: faces,
+    } = ft;
+
+    let fs = FoldedState::from(&cp, faces[&0]).unwrap();
+    for (i, &(x, y)) in [(0., 0.), (2., 2.), (4., 0.), (4., 0.), (0., 0.)]
+      .iter()
+      .enumerate()
+    {
+      let p1 = fs.folded_coords.map()[&vertices[&i]];
+      let p2 = Point3::new(x, y, 0.);
+      assert!(
+        na::distance(&p1, &p2) < 0.001,
+        "point: {}, left = {}, right = {}",
+        i,
+        p1,
+        p2,
+      );
+    }
+
+    // now fold at a different angle
+    cp.fold_angle.insert(&cp.g, edges[&0], -90.0);
+    match FoldedState::from(&cp, faces[&0]) {
+      Err(Error::DistinctIsometries(_)) => (),
+      Err(x) => panic!("wrong error {}", x),
+      _ => panic!("ought to fail"),
+    }
+
+    cp.fold_angle.insert(&cp.g, edges[&6], 90.0);
+    let fs = FoldedState::from(&cp, faces[&0]).unwrap();
+    for (i, &(x, y, z)) in [
+      (0., 0., 0.),
+      (2., 2., 0.),
+      (2., 2., -2.8284271),
+      (4., 0., 0.),
+      (0., 0., 0.),
+    ]
+    .iter()
+    .enumerate()
+    {
+      let p1 = fs.folded_coords.map()[&vertices[&i]];
+      let p2 = Point3::new(x, y, z);
+      assert!(
+        na::distance(&p1, &p2) < 0.001,
+        "point: {}, left = {}, right = {}",
+        i,
+        p1,
+        p2,
+      );
+    }
   }
 }
