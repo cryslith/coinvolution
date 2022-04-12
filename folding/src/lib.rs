@@ -4,12 +4,15 @@ mod format;
 use std::collections::{HashMap, VecDeque};
 use std::f64::consts::PI;
 
-use gmap::{Alphas, Dart, GMap, OrbitMap};
-use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion};
+use gmap::{Dart, GMap, OrbitMap};
+use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion, Vector3};
 use thiserror::Error;
 
-const ANGLE_EPSILON: f64 = 0.001;
-const LENGTH_EPSILON: f64 = 0.001;
+const ISO_ANGLE_EPSILON: f64 = 0.001;
+const ISO_LENGTH_EPSILON: f64 = 0.001;
+
+const COPLANAR_ANGLE_EPSILON: f64 = 0.001;
+const COPLANAR_DISTANCE_EPSILON: f64 = 0.001;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -240,7 +243,7 @@ impl FoldedState {
             let i = other_isometry.inv_mul(old_other_isometry);
             let angle = i.rotation.angle();
             let length = i.translation.vector.magnitude_squared();
-            if angle.abs() > ANGLE_EPSILON || length > LENGTH_EPSILON {
+            if angle.abs() > ISO_ANGLE_EPSILON || length > ISO_LENGTH_EPSILON {
               return Err(Error::DistinctIsometries(my_face));
             }
           } else {
@@ -270,6 +273,69 @@ impl FoldedState {
       face_isometries: isometries,
     })
   }
+
+  // check if any point of face is in the plane specified by a point and a normal vector
+  fn is_face_in_plane(
+    &self,
+    cp: &CreasePattern,
+    face: Dart,
+    normal: Vector3<f64>,
+    plane_point: Point3<f64>,
+  ) -> bool {
+    let mut v = face;
+    loop {
+      if normal.dot(&(self.folded_coords.map()[&v] - plane_point)) < COPLANAR_DISTANCE_EPSILON {
+        break true;
+      }
+      v = cp.g.al(v, [0, 1]);
+      if v == face {
+        break false;
+      }
+    }
+  }
+
+  fn check_polygon_intersections(&self, cp: &CreasePattern) -> Result<(), Error> {
+    let g = &cp.g;
+
+    // loop over all pairs of faces
+    let faces: Vec<Dart> = g.one_dart_per_cell(2).collect();
+    for face_index1 in 0..faces.len() {
+      for face_index2 in (face_index1 + 1)..faces.len() {
+        let face1 = faces[face_index1];
+        let face2 = faces[face_index2];
+
+        let i1 = self.face_isometries.map()[&face1];
+        let i2 = self.face_isometries.map()[&face2];
+        let angle_diff = (i1.rotation / i2.rotation).angle();
+
+        // normal vectors
+        let n1 = i1.rotation.transform_vector(&Vector3::new(0.0, 0.0, 1.0));
+        let n2 = i2.rotation.transform_vector(&Vector3::new(0.0, 0.0, 1.0));
+
+        // check if angle between planes is small
+        if angle_diff.abs() < COPLANAR_ANGLE_EPSILON
+          || (angle_diff - PI).abs() < COPLANAR_ANGLE_EPSILON
+        {
+          // The faces lie in near-parallel planes.  We need to check if they're coplanar.
+          let p1 = self.folded_coords.map()[&face1];
+          let p2 = self.folded_coords.map()[&face2];
+
+          let coplanar =
+            self.is_face_in_plane(cp, face1, n2, p2) && self.is_face_in_plane(cp, face2, n1, p1);
+          if !coplanar {
+            continue;
+          } else {
+            // track coplanarity in a union-find
+            todo!("coplanar");
+          }
+        } else {
+          // check for intersections
+          todo!("nonparallel");
+        }
+      }
+    }
+    todo!()
+  }
 }
 
 #[cfg(test)]
@@ -277,6 +343,7 @@ mod tests {
   use super::*;
 
   use format::tests::load_example;
+  use gmap::Alphas;
 
   // todo: these are integration tests not unit tests; move them somewhere else and add an actual unit test
 
