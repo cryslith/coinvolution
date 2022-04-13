@@ -362,30 +362,30 @@ impl OrbitReprs {
     Self(HashMap::new())
   }
 
-  pub fn try_orbit_repr(&self, a: Alphas, d: Dart) -> Option<Dart> {
+  pub fn get(&self, a: Alphas, d: Dart) -> Option<Dart> {
     self.0.get(&a).map(|v| v[d.0])
   }
 
-  pub fn orbit_repr(&self, g: &GMap, a: Alphas, d: Dart) -> Dart {
-    if let Some(r) = self.try_orbit_repr(a, d) {
+  pub fn get_or_search(&self, g: &GMap, a: Alphas, d: Dart) -> Dart {
+    if let Some(r) = self.get(a, d) {
       return r;
     }
     g.orbit(d, a).min().unwrap()
   }
 
-  pub fn try_orbit_reprs(&self, a: Alphas) -> Option<&[Dart]> {
+  pub fn get_all(&self, a: Alphas) -> Option<&[Dart]> {
     self.0.get(&a).map(Vec::as_slice)
   }
 
-  pub fn ensure_orbit_reprs(&mut self, g: &GMap, a: Alphas) -> &[Dart] {
+  pub fn ensure_all(&mut self, g: &GMap, a: Alphas) -> &[Dart] {
     if !self.0.contains_key(&a) {
-      self.build_orbit_reprs(g, a)
+      self.build(g, a)
     }
     self.0.get(&a).unwrap()
   }
 
   /// (Re)build the orbit representative list for a-orbits.
-  pub fn build_orbit_reprs(&mut self, g: &GMap, a: Alphas) {
+  pub fn build(&mut self, g: &GMap, a: Alphas) {
     let mut v = Vec::new();
     let mut seen = HashSet::new();
     for d in (0..g.alpha.len()).map(Dart) {
@@ -405,6 +405,6 @@ impl Index<(Alphas, Dart)> for OrbitReprs {
   type Output = Dart;
 
   fn index(&self, (a, d): (Alphas, Dart)) -> &Self::Output {
-    &self.try_orbit_reprs(a).unwrap()[d.0]
+    &self.get_all(a).unwrap()[d.0]
   }
 }
