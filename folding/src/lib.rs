@@ -1,7 +1,7 @@
 mod convex;
 mod format;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::f64::consts::PI;
 
 use gmap::{Dart, GMap, OrbitMap};
@@ -12,7 +12,7 @@ const ISO_ANGLE_EPSILON: f64 = 0.001;
 const ISO_LENGTH_EPSILON: f64 = 0.001;
 
 const COPLANAR_ANGLE_EPSILON: f64 = 0.001;
-const COPLANAR_DISTANCE_EPSILON: f64 = 0.001;
+const PLANE_DISTANCE_EPSILON: f64 = 0.001;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -274,7 +274,7 @@ impl FoldedState {
     })
   }
 
-  // check if any point of face is in the plane specified by a point and a normal vector
+  /// Check if any point of a face is in the plane specified by a point and a normal vector
   fn is_face_in_plane(
     &self,
     cp: &CreasePattern,
@@ -284,7 +284,11 @@ impl FoldedState {
   ) -> bool {
     let mut v = face;
     loop {
-      if normal.dot(&(self.folded_coords.map()[&v] - plane_point)) < COPLANAR_DISTANCE_EPSILON {
+      if normal
+        .dot(&(self.folded_coords.map()[&v] - plane_point))
+        .abs()
+        < PLANE_DISTANCE_EPSILON
+      {
         break true;
       }
       v = cp.g.al(v, [0, 1]);
@@ -294,15 +298,130 @@ impl FoldedState {
     }
   }
 
+  /// Find all edges of a face lying in the specified plane.
+  fn edges_in_plane(
+    &self,
+    cp: &CreasePattern,
+    face: Dart,
+    normal: Vector3<f64>,
+    plane_point: Point3<f64>,
+  ) -> Vec<Dart> {
+    let mut result = vec![];
+    let face = if cp.orientation[&face] {
+      face
+    } else {
+      cp.g.al(face, [0])
+    };
+    let mut v = face;
+    let mut v_in = normal
+      .dot(&(self.folded_coords.map()[&v] - plane_point))
+      .abs()
+      < PLANE_DISTANCE_EPSILON;
+    loop {
+      let v1 = cp.g.al(v, [0, 1]);
+      let v1_in = normal
+        .dot(&(self.folded_coords.map()[&v1] - plane_point))
+        .abs()
+        < PLANE_DISTANCE_EPSILON;
+      if v_in && v1_in {
+        result.push(v);
+      }
+
+      v = v1;
+      v_in = v1_in;
+      if v == face {
+        break;
+      }
+    }
+    result
+  }
+
+  /// Find the two edges where a face crosses the specified plane.
+  fn face_plane_crossing(
+    &self,
+    cp: &CreasePattern,
+    face: Dart,
+    normal: Vector3<f64>,
+    plane_point: Point3<f64>,
+  ) -> Option<(Dart, Dart)> {
+    let mut pos = None;
+    let mut neg = None;
+    let mut pos_epsilon = false;
+    let mut neg_epsilon = false;
+
+    let face = if cp.orientation[&face] {
+      face
+    } else {
+      cp.g.al(face, [0])
+    };
+    let mut v = face;
+    let mut d = normal.dot(&(self.folded_coords.map()[&v] - plane_point));
+    loop {
+      let v1 = cp.g.al(v, [0, 1]);
+      let d1 = normal.dot(&(self.folded_coords.map()[&v1] - plane_point));
+      if d < 0.0 && d1 >= 0.0 {
+        pos = Some(v);
+      }
+      if d >= 0.0 && d1 < 0.0 {
+        neg = Some(v);
+      }
+      if d > PLANE_DISTANCE_EPSILON {
+        pos_epsilon = true;
+      }
+      if d < PLANE_DISTANCE_EPSILON {
+        neg_epsilon = true;
+      }
+
+      v = v1;
+      d = d1;
+      if v == face {
+        break;
+      }
+    }
+    // If the face never exceeded epsilon distance from the plane,
+    // no crossing occurred.
+    if !pos_epsilon || !neg_epsilon {
+      return None;
+    }
+    pos.zip(neg)
+  }
+
+  /// Given an edge and a plane, find the point where the edge crosses the plane
+  fn edge_crossing_point(
+    &self,
+    cp: &CreasePattern,
+    edge: Dart,
+    normal: Vector3<f64>,
+    plane_point: Point3<f64>,
+  ) -> Point3<f64> {
+    let p0 = self.folded_coords.map()[&edge];
+    let p1 = self.folded_coords.map()[&cp.g.al(edge, [0])];
+    let d0 = normal.dot(&(p0 - plane_point));
+    let d1 = normal.dot(&(p1 - plane_point));
+    let x = d1 / (d1 - d0);
+    if x.is_nan() {
+      panic!("edge parallel to plane");
+    }
+    Point3::from(p1.coords.lerp(&p0.coords, x))
+  }
+
   fn check_polygon_intersections(&self, cp: &CreasePattern) -> Result<(), Error> {
     let g = &cp.g;
 
     // loop over all pairs of faces
     let faces: Vec<Dart> = g.one_dart_per_cell(2).collect();
     for face_index1 in 0..faces.len() {
-      for face_index2 in (face_index1 + 1)..faces.len() {
+      'faces: for face_index2 in (face_index1 + 1)..faces.len() {
         let face1 = faces[face_index1];
         let face2 = faces[face_index2];
+
+        // skip faces which share a crease
+        let face1_darts: HashSet<Dart> = g.cell(face1, 2).collect();
+        for d in g.cell(face2, 2) {
+          if face1_darts.contains(&g.al(d, [2])) {
+            continue 'faces;
+          }
+        }
 
         let i1 = self.face_isometries.map()[&face1];
         let i2 = self.face_isometries.map()[&face2];
@@ -311,14 +430,15 @@ impl FoldedState {
         // normal vectors
         let n1 = i1.rotation.transform_vector(&Vector3::new(0.0, 0.0, 1.0));
         let n2 = i2.rotation.transform_vector(&Vector3::new(0.0, 0.0, 1.0));
+        // choose arbitrary points of each face to define the planes
+        let p1 = self.folded_coords.map()[&face1];
+        let p2 = self.folded_coords.map()[&face2];
 
         // check if angle between planes is small
         if angle_diff.abs() < COPLANAR_ANGLE_EPSILON
           || (angle_diff - PI).abs() < COPLANAR_ANGLE_EPSILON
         {
           // The faces lie in near-parallel planes.  We need to check if they're coplanar.
-          let p1 = self.folded_coords.map()[&face1];
-          let p2 = self.folded_coords.map()[&face2];
 
           let coplanar =
             self.is_face_in_plane(cp, face1, n2, p2) && self.is_face_in_plane(cp, face2, n1, p1);
