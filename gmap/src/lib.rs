@@ -1,8 +1,10 @@
 pub mod grids;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::Index;
+
+use itertools::{EitherOrBoth, Itertools};
 
 #[derive(Debug)]
 pub enum GMapError {
@@ -221,58 +223,69 @@ impl GMap {
   }
 
   /// Enumerate the a-orbit of d.
-  /// Returns a list of darts d1 together with their paths,
-  /// which is the sequence of indices (taken from a) from d to d1.
-  pub fn orbit_paths(&self, d: Dart, a: Alphas) -> Vec<(Vec<usize>, Dart)> {
-    let mut seen = HashSet::new();
-    // XXX should be vecdeque?1
-    let mut frontier: Vec<(Vec<usize>, Dart)> = vec![(vec![], d)];
-    let mut orbit = Vec::new();
-    while !frontier.is_empty() {
-      let (path, dart) = frontier.remove(0);
-      if seen.contains(&dart) {
-        continue;
-      }
-      seen.insert(dart);
-      orbit.push((path.clone(), dart));
-      for i in 0..=self.dimension {
-        if !a.has(i) {
-          continue;
-        }
-        let neighbor = self.al(dart, [i]);
-        let mut new_path = path.clone();
-        new_path.push(i);
-        frontier.push((new_path, neighbor));
-      }
+  /// Returns an iterator returning darts together with the
+  /// index via which each dart was first reached.
+  /// Performs a breadth-first search which tries indices in increasing order.
+  pub fn orbit_indices(
+    &self,
+    d: Dart,
+    a: Alphas,
+  ) -> impl Iterator<Item = (Option<usize>, Dart)> + '_ {
+    let mut frontier = VecDeque::with_capacity(1);
+    frontier.push_back((None, d));
+    Orbit {
+      g: self,
+      a,
+      seen: HashSet::new(),
+      frontier,
     }
-    orbit
   }
 
-  pub fn orbit(&self, d: Dart, a: Alphas) -> impl Iterator<Item = Dart> {
-    self.orbit_paths(d, a).into_iter().map(|(_, d)| d)
+  pub fn orbit(&self, d: Dart, a: Alphas) -> impl Iterator<Item = Dart> + '_ {
+    self.orbit_indices(d, a).into_iter().map(|(_, d)| d)
   }
 
-  pub fn cell(&self, d: Dart, i: usize) -> impl Iterator<Item = Dart> {
+  pub fn cell(&self, d: Dart, i: usize) -> impl Iterator<Item = Dart> + '_ {
     self.orbit(d, Alphas::cell(i))
   }
 
   /// Sew the i-cell at d0 to the i-cell at d1.
-  /// Returns the list of pairs of darts which were sewn.
-  pub fn sew(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<Vec<(Dart, Dart)>, GMapError> {
+  /// Returns a mapping of pairs of darts which were sewn.
+  pub fn sew(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<HashMap<Dart, Dart>, GMapError> {
     // Only include indices with distance >1 from i.
-    let indices = Alphas(!(1 << i) & !((1 << i) >> 1) & !((1 << i) << 1));
-    let m0: HashMap<_, _> = self.orbit_paths(d0, indices).into_iter().collect();
-    let m1: HashMap<_, _> = self.orbit_paths(d1, indices).into_iter().collect();
-    if m0.len() != m1.len() || m0.iter().any(|(x, _)| !m1.contains_key(x)) {
-      return Err(GMapError::Unsewable);
+    let a = Alphas(!(1 << i) & !((1 << i) >> 1) & !((1 << i) << 1));
+    let mut m01: HashMap<Dart, Dart> = HashMap::new();
+    let mut s1: HashSet<Dart> = HashSet::new();
+
+    for z in self
+      .orbit_indices(d0, a)
+      .zip_longest(self.orbit_indices(d1, a))
+    {
+      let (j, d0, d1) = match z {
+        EitherOrBoth::Both((j0, d0), (j1, d1)) if j0 == j1 => (j0, d0, d1),
+        _ => {
+          return Err(GMapError::Unsewable);
+        }
+      };
+      if m01.contains_key(&d0) || m01.contains_key(&d1) || s1.contains(&d0) || s1.contains(&d1) {
+        return Err(GMapError::Unsewable);
+      }
+      if let Some(j) = j {
+        if m01.get(&self[(d0, j)]).map(|&x| self[(x, j)]) != Some(d1) {
+          return Err(GMapError::Unsewable);
+        }
+      }
+      if !self.is_free(d0, i) || !self.is_free(d1, i) {
+        return Err(GMapError::Unsewable);
+      }
+      m01.insert(d0, d1);
+      s1.insert(d1);
     }
-    let mut output = Vec::new();
-    for (k, d0) in m0.into_iter() {
-      let d1 = *m1.get(&k).ok_or(GMapError::Unsewable)?;
-      self.link(i, d0, d1)?;
-      output.push((d0, d1));
+
+    for (&d0, &d1) in m01.iter() {
+      self.link(i, d0, d1).unwrap();
     }
-    Ok(output)
+    Ok(m01)
   }
 
   /// Unsew the pair of i-cells at d.
@@ -280,7 +293,8 @@ impl GMap {
   pub fn unsew(&mut self, d: Dart, i: usize) -> Result<Vec<(Dart, Dart)>, GMapError> {
     let indices = Alphas(!(1 << i) & !((1 << i) >> 1) & !((1 << i) << 1));
     let mut output = Vec::new();
-    for d0 in self.orbit(d, indices) {
+    for d0 in self.orbit(d, indices).collect::<Vec<_>>() {
+      // XXX can fail mid-unsewing
       let d1 = self.unlink(i, d0)?;
       output.push((d0, d1));
     }
@@ -335,6 +349,42 @@ impl GMap {
     j: usize,
   ) -> impl Iterator<Item = Dart> + 'a {
     self.one_dart_per_incident_orbit(d, Alphas::cell(i), Alphas::cell(j))
+  }
+}
+
+struct Orbit<'a> {
+  g: &'a GMap,
+  a: Alphas,
+  seen: HashSet<Dart>,
+  frontier: VecDeque<(Option<usize>, Dart)>,
+}
+
+impl Iterator for Orbit<'_> {
+  type Item = (Option<usize>, Dart);
+
+  fn next(&mut self) -> Option<Self::Item> {
+    let (from, dart) = loop {
+      match self.frontier.pop_front() {
+        Some((from, dart)) if !self.seen.contains(&dart) => {
+          break (from, dart);
+        }
+        None => {
+          return None;
+        }
+        _ => {
+          continue;
+        }
+      }
+    };
+    self.seen.insert(dart);
+    for i in 0..=self.g.dimension() {
+      if !self.a.has(i) {
+        continue;
+      }
+      let neighbor = self.g[(dart, i)];
+      self.frontier.push_back((Some(i), neighbor));
+    }
+    return Some((from, dart));
   }
 }
 
@@ -453,9 +503,19 @@ mod tests {
   fn diagonal_cp_example() -> GMap {
     GMap::from_alpha(
       2,
-      darts([
-        1, 5, 7, 0, 2, 6, 3, 1, 2, 2, 4, 3, 5, 3, 4, 4, 0, 5, 7, 11, 1, 6, 8, 0, 9, 7, 8, 8, 10, 9,
-        11, 9, 10, 10, 6, 11,
+      #[rustfmt::skip] darts([
+        1, 5, 7,
+        0, 2, 6,
+        3, 1, 2,
+        2, 4, 3,
+        5, 3, 4,
+        4, 0, 5,
+        7, 11, 1,
+        6, 8, 0,
+        9, 7, 8,
+        8, 10, 9,
+        11, 9, 10,
+        10, 6, 11,
       ]),
     )
     .unwrap()
@@ -495,5 +555,20 @@ mod tests {
     f(&g);
     g.increase_dimension(4).unwrap();
     f(&g);
+  }
+
+  #[test]
+  fn test_sew() {
+    let mut g = diagonal_cp_example();
+    g.sew(1, Dart(2), Dart(4)).unwrap_err();
+    // Currently there's no way to 2-link darts 2 and 3
+    // via the public interface, since this isn't allowed by sewing.
+    // Probably it isn't needed.
+    g.sew(2, Dart(2), Dart(3)).unwrap_err();
+    assert!(g.is_free(Dart(2), 2));
+
+    g.sew(2, Dart(2), Dart(10)).unwrap();
+    assert_eq!(g[(Dart(2), 2)], Dart(10));
+    assert_eq!(g[(Dart(3), 2)], Dart(11));
   }
 }
