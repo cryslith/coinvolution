@@ -158,7 +158,7 @@ impl GMap {
       return Err(GMapError::DimensionTooLarge);
     }
     let n = self.ndarts();
-    let mut new_al = Vec::with_capacity(n * (dim + 1));
+    let mut new_al = vec![Dart(!0); n * (dim + 1)];
     for d in 0..n {
       for i in 0..(self.dimension + 1) {
         new_al[d * (dim + 1) + i] = *self.al1(Dart(d), i);
@@ -437,5 +437,63 @@ impl Index<(Alphas, Dart)> for OrbitReprs {
 
   fn index(&self, (a, d): (Alphas, Dart)) -> &Self::Output {
     &self.get_all(a).unwrap()[d.0]
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  use itertools::Itertools;
+
+  fn darts(x: impl IntoIterator<Item = usize>) -> Vec<Dart> {
+    x.into_iter().map(Dart).collect()
+  }
+
+  fn diagonal_cp_example() -> GMap {
+    GMap::from_alpha(
+      2,
+      darts([
+        1, 5, 7, 0, 2, 6, 3, 1, 2, 2, 4, 3, 5, 3, 4, 4, 0, 5, 7, 11, 1, 6, 8, 0, 9, 7, 8, 8, 10, 9,
+        11, 9, 10, 10, 6, 11,
+      ]),
+    )
+    .unwrap()
+  }
+
+  #[test]
+  fn test_load_diagonal_cp() {
+    let g = diagonal_cp_example();
+    assert_eq!(g.ndarts(), 12);
+    assert_eq!(g[(Dart(0), 2)], Dart(7));
+    assert_eq!(g.al(Dart(0), [0, 2, 1, 0]), Dart(10));
+    assert!(g.is_free(Dart(4), 2));
+    assert!(!g.is_free(Dart(4), 0));
+  }
+
+  #[test]
+  fn test_orbits() {
+    fn f(g: &GMap) {
+      let vertex: Vec<Dart> = g.cell(Dart(0), 0).sorted().collect();
+      let edge: Vec<Dart> = g.cell(Dart(0), 1).sorted().collect();
+      let face: Vec<Dart> = g.cell(Dart(0), 2).sorted().collect();
+      let halfedge: Vec<Dart> = g.orbit(Dart(0), Alphas::HALF_EDGE).sorted().collect();
+      let angle: Vec<Dart> = g.orbit(Dart(0), Alphas::ANGLE).sorted().collect();
+      let dart: Vec<Dart> = g.orbit(Dart(0), Alphas(0)).sorted().collect();
+      let all: Vec<Dart> = g.orbit(Dart(0), Alphas(!0)).sorted().collect();
+
+      assert_eq!(vertex, darts([0, 5, 7, 8]));
+      assert_eq!(edge, darts([0, 1, 6, 7]));
+      assert_eq!(face, darts(0..6));
+      assert_eq!(halfedge, darts([0, 7]));
+      assert_eq!(angle, darts([0, 5]));
+      assert_eq!(dart, darts([0]));
+      assert_eq!(all, darts(0..12));
+    }
+
+    let mut g = diagonal_cp_example();
+    f(&g);
+    g.increase_dimension(4).unwrap();
+    f(&g);
   }
 }
