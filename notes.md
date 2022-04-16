@@ -1,8 +1,13 @@
 ## GMap library
 
+- Add unit tests
+- Optimize data structures
+  - Consider using tinyset or smallset for orbit searches
+  - Check low dimension (<= 2) for orbit searches
+  - Avoid allocating paths in orbit searches
 - Add more constructions:
   - prisms (product with an interval)
-    - redo grids in terms of prisms
+    - redo grids in terms of prisms?
   - coproduct (should be easy)
 
 ## Graph display
@@ -33,6 +38,7 @@ https://www.mstang.xyz/noq - https://github.com/mstang107/noq (using ASP!)
 https://github.com/tomvbussel/fillomino
 https://github.com/obijywk/grilops
 https://github.com/jenna-h/hunt-logic
+https://github.com/semiexp/cspuz
 
 Resources:
 https://theory.stanford.edu/~nikolaj/programmingz3.html

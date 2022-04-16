@@ -1,8 +1,8 @@
 pub mod grids;
 
 use std::collections::{HashMap, HashSet};
-use std::ops::Index;
 use std::fmt;
+use std::ops::Index;
 
 #[derive(Debug)]
 pub enum GMapError {
@@ -51,7 +51,17 @@ pub const MAX_DIMENSION: usize = 31;
 pub struct GMap {
   // This is a usize because we need to index by dimensions so often it's unwieldy to store it as something smaller.
   dimension: usize,
-  alpha: Vec<Vec<Dart>>,
+  /// 2-dimensional vector indexed as dart * (dimension + 1) + alpha_index
+  alpha: Vec<Dart>,
+}
+
+impl Index<(Dart, usize)> for GMap {
+  type Output = Dart;
+
+  #[inline(always)]
+  fn index(&self, (d, i): (Dart, usize)) -> &Self::Output {
+    &self.alpha[d.0 * (self.dimension + 1) + i]
+  }
 }
 
 impl GMap {
@@ -59,7 +69,7 @@ impl GMap {
     Self::from_alpha(dimension, vec![])
   }
 
-  pub fn from_alpha(dimension: usize, alpha: Vec<Vec<Dart>>) -> Result<Self, GMapError> {
+  pub fn from_alpha(dimension: usize, alpha: Vec<Dart>) -> Result<Self, GMapError> {
     if dimension > MAX_DIMENSION {
       return Err(GMapError::DimensionTooLarge);
     }
@@ -69,17 +79,16 @@ impl GMap {
   }
 
   fn check_valid(&self) -> Result<(), GMapError> {
-    for (d, al) in self.alpha.iter().enumerate() {
-      if al.len() - 1 != self.dimension {
-        return Err(GMapError::InvalidAlpha(format!(
-          "dart {} has dimension {}, expected {}",
-          d,
-          al.len() - 1,
-          self.dimension
-        )));
-      }
-      for (i, x) in al.iter().cloned().enumerate() {
-        if x.0 >= self.alpha.len() {
+    if self.alpha.len() % (self.dimension + 1) != 0 {
+      return Err(GMapError::InvalidAlpha(format!(
+        "Wrong number of elements {} in alpha",
+        self.alpha.len()
+      )));
+    }
+    let n = self.ndarts();
+    for d in 0..n {
+      for i in 0..=self.dimension {
+        if self[(Dart(d), i)].0 >= n {
           return Err(GMapError::InvalidAlpha(format!(
             "dart {} index {} out of range",
             d, i
@@ -89,8 +98,8 @@ impl GMap {
     }
 
     for i in 0..=self.dimension {
-      for (d, al) in self.alpha.iter().cloned().enumerate() {
-        if self.alpha[al[i].0][i] != Dart(d) {
+      for d in 0..n {
+        if self[(self[(Dart(d), i)], i)] != Dart(d) {
           return Err(GMapError::InvalidAlpha(format!(
             "alpha_{} is not an involution",
             i
@@ -101,8 +110,8 @@ impl GMap {
 
     for i in 0..(self.dimension - 1) {
       for j in (i + 2)..=self.dimension {
-        for al in self.alpha.iter() {
-          if self.alpha[al[i].0][j] != self.alpha[al[j].0][i] {
+        for d in 0..n {
+          if self.al(Dart(d), [i, j]) != self.al(Dart(d), [j, i]) {
             return Err(GMapError::InvalidAlpha(format!(
               "alpha_{} alpha_{} is not an involution",
               i, j
@@ -115,16 +124,30 @@ impl GMap {
     Ok(())
   }
 
+  #[inline(always)]
   pub fn dimension(&self) -> usize {
     self.dimension
   }
 
-  pub fn alpha(&self) -> &[Vec<Dart>] {
+  /// Number of darts
+  #[inline(always)]
+  pub fn ndarts(&self) -> usize {
+    self.alpha.len() / (self.dimension + 1)
+  }
+
+  pub fn alpha(&self) -> &[Dart] {
     &self.alpha
   }
 
+  #[inline(always)]
+  fn al1(&mut self, d: Dart, i: usize) -> &mut Dart {
+    &mut self.alpha[d.0 * (self.dimension + 1) + i]
+  }
+
   pub fn al(&self, d: Dart, indices: impl IntoIterator<Item = usize>) -> Dart {
-    indices.into_iter().fold(d, |d, a| self.alpha[d.0][a])
+    indices
+      .into_iter()
+      .fold(d, |d, a| self.alpha[d.0 * (self.dimension + 1) + a])
   }
 
   pub fn increase_dimension(&mut self, dim: usize) -> Result<(), GMapError> {
@@ -134,39 +157,47 @@ impl GMap {
     if dim > MAX_DIMENSION {
       return Err(GMapError::DimensionTooLarge);
     }
-    self.dimension = dim;
-    for (d, al) in self.alpha.iter_mut().enumerate() {
-      al.resize(dim, Dart(d));
+    let n = self.ndarts();
+    let mut new_al = Vec::with_capacity(n * (dim + 1));
+    for d in 0..n {
+      for i in 0..(self.dimension + 1) {
+        new_al[d * (dim + 1) + i] = *self.al1(Dart(d), i);
+      }
+      for i in (self.dimension + 1)..(dim + 1) {
+        new_al[d * (dim + 1) + i] = Dart(d);
+      }
     }
+    self.alpha = new_al;
+    self.dimension = dim;
     Ok(())
   }
 
   pub fn add_dart(&mut self) -> Dart {
-    let d = Dart(self.alpha.len());
-    self.alpha.push(vec![d; self.dimension + 1]);
+    let d = Dart(self.ndarts());
+    self.alpha.resize(self.alpha.len() + self.dimension + 1, d);
     d
   }
 
   pub fn is_free(&self, d: Dart, i: usize) -> bool {
-    self.alpha[d.0][i] == d
+    self[(d, i)] == d
   }
 
   fn link(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<(), GMapError> {
-    if self.alpha[d0.0][i] != d0 {
+    if !self.is_free(d0, i) || !self.is_free(d1, i) {
       return Err(GMapError::NotFree);
     }
-    self.alpha[d0.0][i] = d1;
-    self.alpha[d1.0][i] = d0;
+    *self.al1(d0, i) = d1;
+    *self.al1(d1, i) = d0;
     Ok(())
   }
 
   fn unlink(&mut self, i: usize, d0: Dart) -> Result<Dart, GMapError> {
-    let d1 = self.alpha[d0.0][i];
+    let d1 = self[(d0, i)];
     if d0 == d1 {
       return Err(GMapError::AlreadyFree);
     }
-    self.alpha[d0.0][i] = d0;
-    self.alpha[d1.0][i] = d1;
+    *self.al1(d0, i) = d0;
+    *self.al1(d1, i) = d1;
     Ok(d1)
   }
 
@@ -179,11 +210,11 @@ impl GMap {
 
   pub fn add_polygon(&mut self, n: usize) -> Dart {
     let start = self.add_edge();
-    let mut prev = self.alpha[start.0][0];
+    let mut prev = self[(start, 0)];
     for _ in 0..(n - 1) {
       let c = self.add_edge();
       self.link(1, prev, c).unwrap();
-      prev = self.alpha[c.0][0];
+      prev = self[(c, 0)];
     }
     self.link(1, start, prev).unwrap();
     start
@@ -194,7 +225,7 @@ impl GMap {
   /// which is the sequence of indices (taken from a) from d to d1.
   pub fn orbit_paths(&self, d: Dart, a: Alphas) -> Vec<(Vec<usize>, Dart)> {
     let mut seen = HashSet::new();
-    // XXX should be vecdeque?
+    // XXX should be vecdeque?1
     let mut frontier: Vec<(Vec<usize>, Dart)> = vec![(vec![], d)];
     let mut orbit = Vec::new();
     while !frontier.is_empty() {
@@ -208,7 +239,7 @@ impl GMap {
         if !a.has(i) {
           continue;
         }
-        let neighbor = self.alpha[dart.0][i];
+        let neighbor = self.al(dart, [i]);
         let mut new_path = path.clone();
         new_path.push(i);
         frontier.push((new_path, neighbor));
