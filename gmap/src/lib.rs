@@ -11,6 +11,7 @@ pub enum GMapError {
   InvalidAlpha(String),
   CannotDecreaseDimension,
   Unsewable,
+  Ununsewable,
   NotFree,
   AlreadyFree,
   DimensionTooLarge,
@@ -290,15 +291,16 @@ impl GMap {
 
   /// Unsew the pair of i-cells at d.
   /// Returns the list of pairs of darts which were unsewn.
-  pub fn unsew(&mut self, d: Dart, i: usize) -> Result<Vec<(Dart, Dart)>, GMapError> {
+  pub fn unsew(&mut self, d: Dart, i: usize) -> Result<HashMap<Dart, Dart>, GMapError> {
     let indices = Alphas(!(1 << i) & !((1 << i) >> 1) & !((1 << i) << 1));
-    let mut output = Vec::new();
-    for d0 in self.orbit(d, indices).collect::<Vec<_>>() {
-      // XXX can fail mid-unsewing
-      let d1 = self.unlink(i, d0)?;
-      output.push((d0, d1));
+    let to_unsew: HashMap<Dart, Dart> = self.orbit(d, indices).map(|x| (x, self[(x, i)])).collect();
+    if to_unsew.values().any(|d| to_unsew.contains_key(d)) {
+      return Err(GMapError::Ununsewable);
     }
-    Ok(output)
+    for d0 in self.orbit(d, indices).collect::<Vec<_>>() {
+      self.unlink(i, d0).unwrap();
+    }
+    Ok(to_unsew)
   }
 
   /// filter out darts which are in the same a-orbit as a previous dart
@@ -501,24 +503,22 @@ mod tests {
   }
 
   fn diagonal_cp_example() -> GMap {
-    GMap::from_alpha(
-      2,
-      #[rustfmt::skip] darts([
-        1, 5, 7,
-        0, 2, 6,
-        3, 1, 2,
-        2, 4, 3,
-        5, 3, 4,
-        4, 0, 5,
-        7, 11, 1,
-        6, 8, 0,
-        9, 7, 8,
-        8, 10, 9,
-        11, 9, 10,
-        10, 6, 11,
-      ]),
-    )
-    .unwrap()
+    #[rustfmt::skip]
+    let alpha = darts([
+      1, 5, 7,
+      0, 2, 6,
+      3, 1, 2,
+      2, 4, 3,
+      5, 3, 4,
+      4, 0, 5,
+      7, 11, 1,
+      6, 8, 0,
+      9, 7, 8,
+      8, 10, 9,
+      11, 9, 10,
+      10, 6, 11,
+    ]);
+    GMap::from_alpha(2, alpha).unwrap()
   }
 
   #[test]
@@ -567,8 +567,69 @@ mod tests {
     g.sew(2, Dart(2), Dart(3)).unwrap_err();
     assert!(g.is_free(Dart(2), 2));
 
-    g.sew(2, Dart(2), Dart(10)).unwrap();
+    let result = g.sew(2, Dart(2), Dart(10)).unwrap();
     assert_eq!(g[(Dart(2), 2)], Dart(10));
     assert_eq!(g[(Dart(3), 2)], Dart(11));
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[&Dart(2)], Dart(10));
+    assert_eq!(result[&Dart(3)], Dart(11));
+
+    // test case where sewn regions have the same size but different shape
+    g = GMap::empty(3).unwrap();
+    let x = g.add_edge();
+    let y = g.add_dart();
+    let z = g.add_dart();
+    g.sew(1, y, z).unwrap();
+    g.sew(3, x, y).unwrap_err();
+    assert!(g.is_free(x, 3));
+
+    let w = g.add_dart();
+    g.sew(1, x, w).unwrap();
+    let v = g.add_dart();
+    g.sew(0, y, v).unwrap();
+    let result = g.sew(3, x, y).unwrap();
+    assert_eq!(result.len(), 3);
+    assert!(!g.is_free(x, 3));
+  }
+
+  #[test]
+  fn test_unsew() {
+    let mut g = diagonal_cp_example();
+    g.unsew(Dart(2), 2).unwrap_err();
+    g.unsew(Dart(2), 1).unwrap();
+    assert!(g.is_free(Dart(2), 1));
+    assert!(g.is_free(Dart(1), 1));
+
+    g = diagonal_cp_example();
+    g.unsew(Dart(0), 0).unwrap();
+    assert!(g.is_free(Dart(0), 0));
+    assert!(g.is_free(Dart(1), 0));
+    assert!(g.is_free(Dart(6), 0));
+    assert!(g.is_free(Dart(7), 0));
+    assert!(!g.is_free(Dart(0), 2));
+    assert!(!g.is_free(Dart(1), 2));
+    assert!(!g.is_free(Dart(6), 2));
+    assert!(!g.is_free(Dart(7), 2));
+
+    g = diagonal_cp_example();
+    g.unsew(Dart(0), 2).unwrap();
+    assert!(!g.is_free(Dart(0), 0));
+    assert!(!g.is_free(Dart(1), 0));
+    assert!(!g.is_free(Dart(6), 0));
+    assert!(!g.is_free(Dart(7), 0));
+    assert!(g.is_free(Dart(0), 2));
+    assert!(g.is_free(Dart(1), 2));
+    assert!(g.is_free(Dart(6), 2));
+    assert!(g.is_free(Dart(7), 2));
+
+    #[rustfmt::skip]
+    {
+      g = GMap::from_alpha(2, darts([
+        1, 0, 1,
+        0, 1, 0,
+      ])).unwrap()
+    };
+    g.unsew(Dart(0), 2).unwrap_err();
+    assert!(!g.is_free(Dart(0), 2));
   }
 }
