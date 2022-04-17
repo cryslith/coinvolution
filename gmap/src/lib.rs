@@ -36,6 +36,7 @@ impl Alphas {
   pub const HALF_EDGE: Self = Self(!3);
   pub const FACE: Self = Self(!4);
   pub const ANGLE: Self = Self(!5);
+  pub const SIDE: Self = Self(!6);
 
   #[inline(always)]
   pub fn cell(i: usize) -> Self {
@@ -223,23 +224,94 @@ impl GMap {
     start
   }
 
+  fn plane_orbit_indices(&self, d: Dart, a: Alphas) -> Option<OrbitImpl<'_>> {
+    use OrbitImpl::*;
+    fn plus_one(g: &GMap, d: Dart, i: usize) -> OrbitImpl<'static> {
+      let d1 = g[(d, i)];
+      if d == d1 {
+        Array1([(None, d)].into_iter())
+      } else {
+        Array2([(None, d), (Some(i), d1)].into_iter())
+      }
+    }
+
+    match (!a.0) & 7 {
+      0 => None,
+      // vertex
+      1 => Some(Path(PathOrbit {
+        g: self,
+        i: 1,
+        j: 2,
+        start: d,
+        current: d,
+        state: PathOrbitState::Initial,
+      })),
+      // edge
+      2 => {
+        let d0 = self[(d, 0)];
+        let d2 = self[(d, 2)];
+        if d == d0 {
+          Some(plus_one(self, d, 2))
+        } else {
+          if d == d2 {
+            Some(Array2([(None, d), (Some(0), d0)].into_iter()))
+          } else {
+            Some(Array4(
+              [
+                (None, d),
+                (Some(0), d0),
+                (Some(2), d2),
+                (Some(2), self[(d0, 2)]),
+              ]
+              .into_iter(),
+            ))
+          }
+        }
+      }
+      // half-edge
+      3 => Some(plus_one(self, d, 2)),
+      // face
+      4 => Some(Path(PathOrbit {
+        g: self,
+        i: 0,
+        j: 1,
+        start: d,
+        current: d,
+        state: PathOrbitState::Initial,
+      })),
+      // angle
+      5 => Some(plus_one(self, d, 1)),
+      // side
+      6 => Some(plus_one(self, d, 0)),
+      // dart
+      7 => Some(Array1([(None, d)].into_iter())),
+      _ => unreachable!(),
+    }
+  }
+
   /// Enumerate the a-orbit of d.
   /// Returns an iterator returning darts together with the
   /// index via which each dart was first reached.
-  /// Performs a breadth-first search which tries indices in increasing order.
+  /// The order of darts returned is deterministic based on the local topology.
   pub fn orbit_indices(
     &self,
     d: Dart,
     a: Alphas,
   ) -> impl Iterator<Item = (Option<usize>, Dart)> + '_ {
+    if self.dimension == 2 {
+      if let Some(x) = self.plane_orbit_indices(d, a) {
+        return x;
+      }
+    }
+
     let mut frontier = VecDeque::with_capacity(1);
     frontier.push_back((None, d));
-    Orbit {
+    OrbitImpl::BFS(Orbit {
       g: self,
       a,
       seen: HashSet::new(),
       frontier,
-    }
+    })
   }
 
   pub fn orbit(&self, d: Dart, a: Alphas) -> impl Iterator<Item = Dart> + '_ {
@@ -387,6 +459,104 @@ impl Iterator for Orbit<'_> {
       self.frontier.push_back((Some(i), neighbor));
     }
     return Some((from, dart));
+  }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PathOrbitState {
+  Initial,
+  ForwardI,
+  ForwardJ,
+  BackwardI,
+  BackwardJ,
+  Done,
+}
+
+struct PathOrbit<'a> {
+  g: &'a GMap,
+  i: usize,
+  j: usize,
+  start: Dart,
+  current: Dart,
+  state: PathOrbitState,
+}
+
+impl Iterator for PathOrbit<'_> {
+  type Item = (Option<usize>, Dart);
+
+  fn next(&mut self) -> Option<Self::Item> {
+    use PathOrbitState::*;
+
+    if self.state == Initial {
+      self.current = self.g[(self.start, self.i)];
+      self.state = ForwardJ;
+      if self.current == self.start {
+        self.current = self.g[(self.start, self.j)];
+        self.state = BackwardI;
+      }
+      return Some((None, self.start));
+    }
+    if self.state == Done {
+      return None;
+    }
+
+    let old = self.current;
+    if old == self.start {
+      return None;
+    }
+
+    let (current_index, prev_index) = match self.state {
+      ForwardI | BackwardI => (self.i, self.j),
+      ForwardJ | BackwardJ => (self.j, self.i),
+      _ => unreachable!(),
+    };
+    let result = Some((Some(prev_index), old));
+
+    self.current = self.g[(old, current_index)];
+    self.state = match self.state {
+      ForwardI => ForwardJ,
+      ForwardJ => ForwardI,
+      BackwardI => BackwardJ,
+      BackwardJ => BackwardI,
+      _ => unreachable!(),
+    };
+
+    if self.current == old {
+      match self.state {
+        ForwardI | ForwardJ => {
+          self.current = self.g[(self.start, self.j)];
+          self.state = BackwardI;
+        }
+        _ => {
+          self.state = Done;
+        }
+      }
+    }
+
+    return result;
+  }
+}
+
+enum OrbitImpl<'a> {
+  BFS(Orbit<'a>),
+  Path(PathOrbit<'a>),
+  Array1(std::array::IntoIter<(Option<usize>, Dart), 1>),
+  Array2(std::array::IntoIter<(Option<usize>, Dart), 2>),
+  Array4(std::array::IntoIter<(Option<usize>, Dart), 4>),
+}
+
+impl Iterator for OrbitImpl<'_> {
+  type Item = (Option<usize>, Dart);
+
+  fn next(&mut self) -> Option<Self::Item> {
+    use OrbitImpl::*;
+    match self {
+      BFS(x) => x.next(),
+      Path(x) => x.next(),
+      Array1(x) => x.next(),
+      Array2(x) => x.next(),
+      Array4(x) => x.next(),
+    }
   }
 }
 
@@ -539,6 +709,7 @@ mod tests {
       let face: Vec<Dart> = g.cell(Dart(0), 2).sorted().collect();
       let halfedge: Vec<Dart> = g.orbit(Dart(0), Alphas::HALF_EDGE).sorted().collect();
       let angle: Vec<Dart> = g.orbit(Dart(0), Alphas::ANGLE).sorted().collect();
+      let side: Vec<Dart> = g.orbit(Dart(0), Alphas::SIDE).sorted().collect();
       let dart: Vec<Dart> = g.orbit(Dart(0), Alphas(0)).sorted().collect();
       let all: Vec<Dart> = g.orbit(Dart(0), Alphas(!0)).sorted().collect();
 
@@ -547,6 +718,7 @@ mod tests {
       assert_eq!(face, darts(0..6));
       assert_eq!(halfedge, darts([0, 7]));
       assert_eq!(angle, darts([0, 5]));
+      assert_eq!(side, darts([0, 1]));
       assert_eq!(dart, darts([0]));
       assert_eq!(all, darts(0..12));
     }
