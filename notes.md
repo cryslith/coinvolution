@@ -1,16 +1,18 @@
 ## GMap library
 
-- Add unit tests
 - Optimize data structures
   - Consider using tinyset or smallset for orbit searches
-  - Check low dimension (<= 2) for orbit searches
-  - Avoid allocating paths in orbit searches
 - Add more constructions:
   - prisms (product with an interval)
     - redo grids in terms of prisms?
   - coproduct (should be easy)
 
 ## Graph display
+
+Todo:
+- switching between layers
+- support strings in all basic cell types
+- Fix bug with selecting lines on thin triangles
 
 Goals:
 - Interaction with grids should be as natural as possible

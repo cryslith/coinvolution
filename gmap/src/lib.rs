@@ -395,7 +395,7 @@ impl GMap {
 
   /// one dart per a-orbit
   pub fn one_dart_per_orbit<'a>(&'a self, a: Alphas) -> impl Iterator<Item = Dart> + 'a {
-    self.unique_by_orbit((0..self.alpha.len()).map(Dart), a)
+    self.unique_by_orbit((0..self.ndarts()).map(Dart), a)
   }
 
   /// one dart per i-cell
@@ -721,6 +721,12 @@ mod tests {
       assert_eq!(side, darts([0, 1]));
       assert_eq!(dart, darts([0]));
       assert_eq!(all, darts(0..12));
+
+      let faces: Vec<Dart> = g.one_dart_per_cell(2).collect();
+      let halfedges: Vec<Dart> = g.one_dart_per_orbit(Alphas::HALF_EDGE).collect();
+
+      assert_eq!(faces.len(), 2);
+      assert_eq!(halfedges.len(), 10);
     }
 
     let mut g = diagonal_cp_example();
