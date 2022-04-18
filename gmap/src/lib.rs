@@ -640,8 +640,9 @@ impl OrbitReprs {
   /// (Re)build the orbit representative list for a-orbits.
   pub fn build(&mut self, g: &GMap, a: Alphas) {
     let mut v = Vec::new();
+    v.resize(g.ndarts(), Dart(!0));
     let mut seen = HashSet::new();
-    for d in (0..g.alpha.len()).map(Dart) {
+    for d in (0..g.ndarts()).map(Dart) {
       if seen.contains(&d) {
         continue;
       }
@@ -809,5 +810,23 @@ mod tests {
     };
     g.unsew(Dart(0), 2).unwrap_err();
     assert!(!g.is_free(Dart(0), 2));
+  }
+
+  #[test]
+  fn test_orbit_reprs() {
+    let g = diagonal_cp_example();
+    let mut or = OrbitReprs::new();
+    or.build(&g, Alphas::FACE);
+
+    assert_eq!(or[(Alphas::FACE, Dart(4))], Dart(0));
+    assert_eq!(
+      or.get_all(Alphas::FACE).unwrap(),
+      darts([0, 0, 0, 0, 0, 0, 6, 6, 6, 6, 6, 6])
+    );
+
+    assert_eq!(
+      or.ensure_all(&g, Alphas::EDGE),
+      darts([0, 0, 2, 2, 4, 4, 0, 0, 8, 8, 10, 10])
+    );
   }
 }
