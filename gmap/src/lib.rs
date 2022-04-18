@@ -829,4 +829,20 @@ mod tests {
       darts([0, 0, 2, 2, 4, 4, 0, 0, 8, 8, 10, 10])
     );
   }
+
+  #[test]
+  fn test_orbit_maps() {
+    let g = diagonal_cp_example();
+    let mut m: OrbitMap<usize> = OrbitMap::over_cells(0);
+    m.insert(&g, Dart(0), 1);
+    m.insert(&g, Dart(4), 2);
+    m.insert(&g, Dart(7), 3);
+
+    let m: Vec<(Dart, usize)> = m.into_map().into_iter().sorted().collect();
+    let expected: Vec<(Dart, usize)> = [(0, 3), (3, 2), (4, 2), (5, 3), (7, 3), (8, 3)]
+      .into_iter()
+      .map(|(x, y)| (Dart(x), y))
+      .collect();
+    assert_eq!(m, expected);
+  }
 }
