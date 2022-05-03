@@ -13,6 +13,7 @@ Todo:
 - switching between layers
 - support strings in all basic cell types
 - Fix bug with selecting lines on thin triangles
+- more marker types
 
 Goals:
 - Interaction with grids should be as natural as possible
@@ -51,6 +52,6 @@ https://rise4fun.com/z3/tutorial
 ## Building & Testing
 
     cd coin-web
-    wasm-pack build --target web -- --features console_error_panic_hook
+    wasm-pack build --debug --target web -- --features console_error_panic_hook,wee_alloc
     python3 -m http.server
 

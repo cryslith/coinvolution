@@ -5,26 +5,15 @@ pub mod svg;
 
 use puzzle::Puzzle;
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use sauron::prelude::*;
 
-use wasm_bindgen::prelude::*;
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-struct State {
-  p: Puzzle,
-}
-
-#[wasm_bindgen]
-#[derive(Clone)]
-pub struct JState(Rc<RefCell<State>>);
-
-#[wasm_bindgen]
-pub fn initialize(svg: svg::SVG) -> JState {
-  let p = Puzzle::new(svg);
-  let jstate = JState(Rc::new(RefCell::new(State { p })));
-  {
-    let p = &mut jstate.0.borrow_mut().p;
-    p.display(&jstate);
-  }
-  return jstate;
+#[wasm_bindgen(start)]
+pub fn main() {
+  #[cfg(feature = "console_error_panic_hook")]
+  console_error_panic_hook::set_once();
+  Program::mount_to_body(Puzzle::new());
 }

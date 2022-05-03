@@ -1,17 +1,11 @@
-use crate::svg::{self, get_location, JsEvent, SVG};
-use crate::JState;
+use crate::svg::get_location;
 
-use gmap::{grids::square, GMap, OrbitMap, Dart, Alphas};
+use gmap::{grids::square, Alphas, Dart, GMap, OrbitMap};
 
-use std::cell::RefCell;
-use std::collections::VecDeque;
-use std::rc::Rc;
+use sauron::{html::attributes::style, prelude::*};
 
-use wasm_bindgen::prelude::Closure;
-
-struct FaceClicker {
-  path: svg::Object,
-  click: Option<Closure<dyn FnMut(&JsEvent)>>,
+pub enum Msg {
+  FaceClick(Dart, f64, f64),
 }
 
 pub enum Marker {
@@ -38,20 +32,17 @@ pub enum LayerData {
 pub struct Layer {
   data: LayerData,
   active_dart: Option<Dart>,
-  markers: OrbitMap<svg::Object>,
 }
 
 pub struct Puzzle {
   g: GMap,
-  svg: SVG,
   layout: OrbitMap<(f64, f64)>, // positions of every vertex
-  face_clickers: OrbitMap<Rc<RefCell<FaceClicker>>>,
   layers: Vec<Layer>,
   active_layer: Option<usize>,
 }
 
 impl Puzzle {
-  pub fn new(svg: svg::SVG) -> Self {
+  pub fn new() -> Self {
     let (g, squares) = square::new(10, 10);
     let mut layout = OrbitMap::new(Alphas::VERTEX);
     for (i, row) in square::vertex_grid(&g, &squares).iter().enumerate() {
@@ -62,9 +53,7 @@ impl Puzzle {
 
     Puzzle {
       g,
-      svg,
       layout,
-      face_clickers: OrbitMap::new(Alphas::FACE),
       layers: vec![Layer {
         data: LayerData::Enum {
           spec: vec![
@@ -74,50 +63,8 @@ impl Puzzle {
           data: OrbitMap::new(Alphas::EDGE),
         },
         active_dart: None,
-        markers: OrbitMap::new(Alphas::EDGE),
       }],
       active_layer: Some(0),
-    }
-  }
-
-  pub fn display(&mut self, jstate: &JState) {
-    let g = &self.g;
-    for face in g.one_dart_per_cell(2) {
-      let mut segments = vec![];
-      let mut v = face;
-      loop {
-        let &(x, y) = self.layout.map().get(&v).expect("missing vertex in layout");
-        segments.push(format!("{} {} {}", if v == face { "M" } else { "L" }, x, y));
-
-        v = g.al(v, [0, 1]);
-        if v == face {
-          break;
-        }
-      }
-
-      segments.push(format!("Z"));
-
-      let clicker = self.svg.path();
-      clicker.plot(&segments.join(" "));
-      clicker.attr("stroke", "gray");
-      clicker.attr("stroke-width", "0.05");
-      clicker.attr("fill", "transparent");
-      let svg_onclick = self.svg.clone();
-      let jstate_onclick = jstate.clone();
-      let onclick = Closure::new(move |e: &JsEvent| {
-        let mut state = jstate_onclick.0.borrow_mut();
-        let p = get_location(&svg_onclick, &e);
-        state.p.handle_click(face, p.x(), p.y());
-      });
-      clicker.on("mousedown", &onclick);
-      self.face_clickers.insert(
-        &g,
-        face,
-        Rc::new(RefCell::new(FaceClicker {
-          path: clicker,
-          click: Some(onclick),
-        })),
-      );
     }
   }
 
@@ -148,18 +95,6 @@ impl Puzzle {
     }
   }
 
-  pub(crate) fn handle_click(&mut self, face: Dart, x: f64, y: f64) {
-    let dart = self.identify_dart(face, x, y);
-    log!(
-      "event: face {} clicked at ({}, {}).  dart: {}",
-      face,
-      x,
-      y,
-      dart
-    );
-    self.click_dart(dart);
-  }
-
   fn click_dart(&mut self, dart: Dart) {
     let layer = if let Some(layer) = self.active_layer {
       &mut self.layers[layer]
@@ -177,65 +112,133 @@ impl Puzzle {
         } else {
           data.remove(&self.g, dart);
         }
-        self.redraw_active_layer(dart);
       }
     }
   }
 
-  pub fn redraw_active_layer(&mut self, dart: Dart) {
-    let layer = if let Some(layer) = self.active_layer {
-      &mut self.layers[layer]
-    } else {
-      return;
-    };
+  pub fn view_layer(&self, layer: &Layer) -> Vec<Node<Msg>> {
+    let mut nodes = vec![];
     match &layer.data {
       LayerData::String { .. } => todo!(),
       LayerData::Enum { spec, data } => {
-        let value = data.map().get(&dart);
         let indices = data.indices();
+        for dart in self.g.one_dart_per_orbit(indices) {
+          let value = data.map().get(&dart);
 
-        log!("dart {} updated, value: {:?}", dart, value);
+          match value {
+            None => {}
+            Some(i) => {
+              let (marker_type, color) = &spec[*i];
+              match marker_type {
+                Marker::Dot => {
+                  let (center_x, center_y) = center(&self.g, &self.layout, dart, indices);
+                  // todo abstract magic numbers
+                  let new_marker = circle(
+                    [
+                      cx(center_x),
+                      cy(center_y),
+                      r(0.1),
+                      stroke("none"),
+                      fill(color),
+                      pointer_events("none"),
+                    ],
+                    [],
+                  );
 
-        if let Some(old_marker) = layer.markers.map().get(&dart) {
-          old_marker.remove();
-        }
-
-        match value {
-          None => {}
-          Some(i) => {
-            let (marker_type, color) = &spec[*i];
-            match marker_type {
-              Marker::Dot => {
-                let (cx, cy) = center(&self.g, &self.layout, dart, indices);
-                let new_marker = self.svg.path();
-                new_marker.plot(&format!(
-                  "M {} {} \
-                   m 0.1 0 \
-                   a 0.1 0.1 0 0 0 -0.2 0 \
-                   a 0.1 0.1 0 0 0 +0.2 0",
-                  cx, cy
-                )); // todo abstract magic numbers
-                new_marker.attr("stroke", "none");
-                new_marker.attr("fill", color);
-                new_marker.attr("pointer-events", "none");
-                layer.markers.insert(&self.g, dart, new_marker);
+                  nodes.push(new_marker);
+                }
+                _ => todo!(),
               }
-              _ => todo!(),
             }
           }
         }
       }
     }
+    nodes
+  }
+}
+
+impl Application<Msg> for Puzzle {
+  fn update(&mut self, msg: Msg) -> Cmd<Self, Msg> {
+    match msg {
+      Msg::FaceClick(face, x, y) => {
+        let dart = self.identify_dart(face, x, y);
+        log!(
+          "event: face {} clicked at ({}, {}).  dart: {}",
+          face,
+          x,
+          y,
+          dart
+        );
+        self.click_dart(dart);
+      }
+    }
+    Cmd::none()
+  }
+
+  fn view(&self) -> Node<Msg> {
+    let g = &self.g;
+    let mut face_clickers: Vec<Node<Msg>> = vec![];
+
+    for face in g.one_dart_per_cell(2) {
+      let mut segments = vec![];
+      let mut v = face;
+      loop {
+        let &(x, y) = self.layout.map().get(&v).expect("missing vertex in layout");
+        segments.push(format!("{},{}", x, y));
+
+        v = g.al(v, [0, 1]);
+        if v == face {
+          break;
+        }
+      }
+
+      let clicker = polygon(
+        [
+          points(&segments.join(" ")),
+          stroke("gray"),
+          stroke_width("0.05"),
+          fill("transparent"),
+          on_click(move |event: MouseEvent| {
+            let coords = get_location("#puzzle", &event);
+            let x = coords.x();
+            let y = coords.y();
+            Msg::FaceClick(face, x, y)
+          }),
+        ],
+        [],
+      );
+      face_clickers.push(clicker);
+    }
+
+    article(
+      [],
+      [div(
+        [
+          style("height", "95vh"),
+          style("display", "flex"),
+          style("align-items", "center"),
+          style("flex-direction", "column"),
+        ],
+        [svg(
+          [id("puzzle"), viewBox([-2, -2, 14, 14])],
+          face_clickers
+            .into_iter()
+            .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
+        )],
+      )],
+    )
   }
 }
 
 /// center of the a-orbit at d
 fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: Dart, a: Alphas) -> (f64, f64) {
-  let ((x, y), n) = g
-    .one_dart_per_incident_orbit(d, Alphas::VERTEX, a)
-    .fold(((0f64, 0f64), 0f64), |((x, y), n), d| {
+  let ((x, y), n) = g.one_dart_per_incident_orbit(d, Alphas::VERTEX, a).fold(
+    ((0f64, 0f64), 0f64),
+    |((x, y), n), d| {
       let &(x1, y1) = layout.map().get(&d).expect("missing vertex in layout");
       ((x + x1, y + y1), n + 1f64)
-    });
+    },
+  );
   (x / n, y / n)
 }
