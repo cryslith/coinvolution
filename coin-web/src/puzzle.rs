@@ -116,50 +116,42 @@ impl Puzzle {
     }
   }
 
-  fn view_layer(&self, layer: &Layer) -> Vec<Node<Msg>> {
-    let mut nodes = vec![];
+  fn view_layer<'a>(&'a self, layer: &'a Layer) -> impl Iterator<Item = Node<Msg>> + 'a {
     match &layer.data {
       LayerData::String { .. } => todo!(),
       LayerData::Enum { spec, data } => {
         let indices = data.indices();
-        for dart in self.g.one_dart_per_orbit(indices) {
+        self.g.one_dart_per_orbit(indices).filter_map(move |dart| {
           let value = data.map().get(&dart);
 
-          match value {
-            None => {}
-            Some(i) => {
-              let (marker_type, color) = &spec[*i];
-              match marker_type {
-                Marker::Dot => {
-                  let (center_x, center_y) = center(&self.g, &self.layout, dart, indices);
-                  // todo abstract magic numbers
-                  let new_marker = circle(
-                    [
-                      cx(center_x),
-                      cy(center_y),
-                      r(0.1),
-                      stroke("none"),
-                      fill(color),
-                      pointer_events("none"),
-                    ],
-                    [],
-                  );
-
-                  nodes.push(new_marker);
-                }
-                _ => todo!(),
+          value.map(|i| {
+            let (marker_type, color) = &spec[*i];
+            match marker_type {
+              Marker::Dot => {
+                let (center_x, center_y) = center(&self.g, &self.layout, dart, indices);
+                // todo abstract magic numbers
+                circle(
+                  [
+                    cx(center_x),
+                    cy(center_y),
+                    r(0.1),
+                    stroke("none"),
+                    fill(color),
+                    pointer_events("none"),
+                  ],
+                  [],
+                )
               }
+              _ => todo!(),
             }
-          }
-        }
+          })
+        })
       }
     }
-    nodes
   }
 
-  fn view_face_clickers(&self) -> Vec<Node<Msg>> {
-    let mut face_clickers: Vec<Node<Msg>> = vec![];
-    for face in self.g.one_dart_per_cell(2) {
+  fn view_face_clickers(&self) -> impl Iterator<Item = Node<Msg>> + '_ {
+    self.g.one_dart_per_cell(2).map(|face| {
       let mut segments = vec![];
       let mut v = face;
       loop {
@@ -172,7 +164,7 @@ impl Puzzle {
         }
       }
 
-      let clicker = polygon(
+      polygon(
         [
           points(&segments.join(" ")),
           stroke("gray"),
@@ -186,10 +178,8 @@ impl Puzzle {
           }),
         ],
         [],
-      );
-      face_clickers.push(clicker);
-    }
-    face_clickers
+      )
+    })
   }
 }
 
@@ -225,7 +215,6 @@ impl Application<Msg> for Puzzle {
           [id("puzzle"), viewBox([-2, -2, 14, 14])],
           self
             .view_face_clickers()
-            .into_iter()
             .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
         )],
       )],
