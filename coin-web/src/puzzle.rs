@@ -2,10 +2,14 @@ use crate::svg::get_location;
 
 use gmap::{grids::square, Alphas, Dart, GMap, OrbitMap};
 
-use sauron::{html::attributes::style, prelude::*};
+use sauron::{
+  html::attributes::{name, style},
+  prelude::*,
+};
 
 pub enum Msg {
   FaceClick(Dart, f64, f64),
+  SelectLayer(usize),
 }
 
 pub enum Marker {
@@ -30,6 +34,7 @@ pub enum LayerData {
 }
 
 pub struct Layer {
+  name: String,
   data: LayerData,
   active_dart: Option<Dart>,
 }
@@ -54,17 +59,28 @@ impl Puzzle {
     Puzzle {
       g,
       layout,
-      layers: vec![Layer {
-        data: LayerData::Enum {
-          spec: vec![
-            (Marker::Dot, "black".to_string()),
-            (Marker::Dot, "red".to_string()),
-          ],
-          data: OrbitMap::new(Alphas::EDGE),
+      layers: vec![
+        Layer {
+          name: "edge".to_string(),
+          data: LayerData::Enum {
+            spec: vec![
+              (Marker::Dot, "black".to_string()),
+              (Marker::Dot, "red".to_string()),
+            ],
+            data: OrbitMap::new(Alphas::EDGE),
+          },
+          active_dart: None,
         },
-        active_dart: None,
-      }],
-      active_layer: Some(0),
+        Layer {
+          name: "vertex".to_string(),
+          data: LayerData::Enum {
+            spec: vec![(Marker::Dot, "blue".to_string())],
+            data: OrbitMap::new(Alphas::VERTEX),
+          },
+          active_dart: None,
+        },
+      ],
+      active_layer: None,
     }
   }
 
@@ -181,6 +197,31 @@ impl Puzzle {
       )
     })
   }
+
+  fn view_layer_selector(&self) -> Node<Msg> {
+    fieldset(
+      [],
+      [legend([], [text("Layer")])]
+        .into_iter()
+        .chain(self.layers.iter().enumerate().map(|(i, l)| {
+          label(
+            [],
+            [
+              input(
+                [
+                  r#type("radio"),
+                  name("layer"),
+                  on_click(move |_| Msg::SelectLayer(i)),
+                  checked(self.active_layer == Some(i)),
+                ],
+                [],
+              ),
+              text(&l.name),
+            ],
+          )
+        })),
+    )
+  }
 }
 
 impl Application<Msg> for Puzzle {
@@ -197,6 +238,10 @@ impl Application<Msg> for Puzzle {
         );
         self.click_dart(dart);
       }
+      Msg::SelectLayer(i) => {
+        log!("event: selected layer {}", i);
+        self.active_layer = Some(i);
+      }
     }
     Cmd::none()
   }
@@ -211,12 +256,15 @@ impl Application<Msg> for Puzzle {
           style("align-items", "center"),
           style("flex-direction", "column"),
         ],
-        [svg(
-          [id("puzzle"), viewBox([-2, -2, 14, 14])],
-          self
-            .view_face_clickers()
-            .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
-        )],
+        [
+          svg(
+            [id("puzzle"), viewBox([-2, -2, 14, 14])],
+            self
+              .view_face_clickers()
+              .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
+          ),
+          self.view_layer_selector(),
+        ],
       )],
     )
   }
