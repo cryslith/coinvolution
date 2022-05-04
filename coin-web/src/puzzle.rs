@@ -116,7 +116,7 @@ impl Puzzle {
     }
   }
 
-  pub fn view_layer(&self, layer: &Layer) -> Vec<Node<Msg>> {
+  fn view_layer(&self, layer: &Layer) -> Vec<Node<Msg>> {
     let mut nodes = vec![];
     match &layer.data {
       LayerData::String { .. } => todo!(),
@@ -156,6 +156,41 @@ impl Puzzle {
     }
     nodes
   }
+
+  fn view_face_clickers(&self) -> Vec<Node<Msg>> {
+    let mut face_clickers: Vec<Node<Msg>> = vec![];
+    for face in self.g.one_dart_per_cell(2) {
+      let mut segments = vec![];
+      let mut v = face;
+      loop {
+        let &(x, y) = self.layout.map().get(&v).expect("missing vertex in layout");
+        segments.push(format!("{},{}", x, y));
+
+        v = self.g.al(v, [0, 1]);
+        if v == face {
+          break;
+        }
+      }
+
+      let clicker = polygon(
+        [
+          points(&segments.join(" ")),
+          stroke("gray"),
+          stroke_width("0.05"),
+          fill("transparent"),
+          on_mousedown(move |event: MouseEvent| {
+            let coords = get_location("#puzzle", &event);
+            let x = coords.x();
+            let y = coords.y();
+            Msg::FaceClick(face, x, y)
+          }),
+        ],
+        [],
+      );
+      face_clickers.push(clicker);
+    }
+    face_clickers
+  }
 }
 
 impl Application<Msg> for Puzzle {
@@ -177,40 +212,6 @@ impl Application<Msg> for Puzzle {
   }
 
   fn view(&self) -> Node<Msg> {
-    let g = &self.g;
-    let mut face_clickers: Vec<Node<Msg>> = vec![];
-
-    for face in g.one_dart_per_cell(2) {
-      let mut segments = vec![];
-      let mut v = face;
-      loop {
-        let &(x, y) = self.layout.map().get(&v).expect("missing vertex in layout");
-        segments.push(format!("{},{}", x, y));
-
-        v = g.al(v, [0, 1]);
-        if v == face {
-          break;
-        }
-      }
-
-      let clicker = polygon(
-        [
-          points(&segments.join(" ")),
-          stroke("gray"),
-          stroke_width("0.05"),
-          fill("transparent"),
-          on_click(move |event: MouseEvent| {
-            let coords = get_location("#puzzle", &event);
-            let x = coords.x();
-            let y = coords.y();
-            Msg::FaceClick(face, x, y)
-          }),
-        ],
-        [],
-      );
-      face_clickers.push(clicker);
-    }
-
     article(
       [],
       [div(
@@ -222,7 +223,8 @@ impl Application<Msg> for Puzzle {
         ],
         [svg(
           [id("puzzle"), viewBox([-2, -2, 14, 14])],
-          face_clickers
+          self
+            .view_face_clickers()
             .into_iter()
             .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
         )],

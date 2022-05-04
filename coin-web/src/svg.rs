@@ -1,5 +1,5 @@
-use wasm_bindgen::prelude::*;
 use sauron::MouseEvent;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(raw_module = "../www/svg.js")]
 extern "C" {
