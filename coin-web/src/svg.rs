@@ -1,9 +1,8 @@
-use sauron::MouseEvent;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(raw_module = "../www/svg.js")]
 extern "C" {
-  pub fn get_location(s: &str, e: &MouseEvent) -> Point;
+  pub fn client_to_svg(s: &str, x: i32, y: i32) -> Point;
 
   pub type Point;
   #[wasm_bindgen(structural, method, getter)]

@@ -10,10 +10,12 @@
 ## Graph display
 
 Todo:
-- switching between layers
 - support strings in all basic cell types
 - Fix bug with selecting lines on thin triangles
 - more marker types
+- display selected cell
+- deselect cell
+- convert to orbit representatives
 
 Goals:
 - Interaction with grids should be as natural as possible

@@ -1,15 +1,16 @@
-use crate::svg::get_location;
+use crate::svg::client_to_svg;
 
 use gmap::{grids::square, Alphas, Dart, GMap, OrbitMap};
 
 use sauron::{
-  html::attributes::{name, style},
+  html::attributes::{name, style, tabindex},
   prelude::*,
 };
 
 pub enum Msg {
   FaceClick(Dart, f64, f64),
   SelectLayer(usize),
+  KeyPressed(String),
 }
 
 pub enum Marker {
@@ -79,6 +80,14 @@ impl Puzzle {
           },
           active_dart: None,
         },
+        Layer {
+          name: "text".to_string(),
+          data: LayerData::String {
+            color: "black".to_string(),
+            data: OrbitMap::new(Alphas::FACE),
+          },
+          active_dart: None,
+        },
       ],
       active_layer: None,
     }
@@ -132,12 +141,34 @@ impl Puzzle {
     }
   }
 
-  fn view_layer<'a>(&'a self, layer: &'a Layer) -> impl Iterator<Item = Node<Msg>> + 'a {
+  fn view_layer<'a>(&'a self, layer: &'a Layer) -> Box<dyn Iterator<Item = Node<Msg>> + 'a> {
     match &layer.data {
-      LayerData::String { .. } => todo!(),
+      LayerData::String { color, data } => {
+        let indices = data.indices();
+        Box::new(self.g.one_dart_per_orbit(indices).filter_map(move |dart| {
+          let value = data.map().get(&dart);
+          let (center_x, center_y) = center(&self.g, &self.layout, dart, indices);
+          let w = orbit_width(&self.g, &self.layout, dart, indices);
+
+          value.map(|s| {
+            svg::tags::text(
+              [
+                x(center_x),
+                y(center_y),
+                dominant_baseline("middle"),
+                text_anchor("middle"),
+                fill(color),
+                textLength(w * 2. / 3.),
+                pointer_events("none"),
+              ],
+              [text(s)],
+            )
+          })
+        }))
+      }
       LayerData::Enum { spec, data } => {
         let indices = data.indices();
-        self.g.one_dart_per_orbit(indices).filter_map(move |dart| {
+        Box::new(self.g.one_dart_per_orbit(indices).filter_map(move |dart| {
           let value = data.map().get(&dart);
 
           value.map(|i| {
@@ -161,7 +192,7 @@ impl Puzzle {
               _ => todo!(),
             }
           })
-        })
+        }))
       }
     }
   }
@@ -187,7 +218,7 @@ impl Puzzle {
           stroke_width("0.05"),
           fill("transparent"),
           on_mousedown(move |event: MouseEvent| {
-            let coords = get_location("#puzzle", &event);
+            let coords = client_to_svg("#puzzle", event.client_x(), event.client_y());
             let x = coords.x();
             let y = coords.y();
             Msg::FaceClick(face, x, y)
@@ -242,6 +273,9 @@ impl Application<Msg> for Puzzle {
         log!("event: selected layer {}", i);
         self.active_layer = Some(i);
       }
+      Msg::KeyPressed(s) => {
+        log!("event: pressed {}", s);
+      }
     }
     Cmd::none()
   }
@@ -258,7 +292,12 @@ impl Application<Msg> for Puzzle {
         ],
         [
           svg(
-            [id("puzzle"), viewBox([-2, -2, 14, 14])],
+            [id("puzzle"), viewBox([-2, -2, 14, 14]),
+             tabindex(0),
+             on_keydown(|event: KeyboardEvent| {
+               Msg::KeyPressed("A".to_string())
+             })
+],
             self
               .view_face_clickers()
               .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
@@ -280,4 +319,15 @@ fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: Dart, a: Alphas) -> (f64, 
     },
   );
   (x / n, y / n)
+}
+
+fn orbit_width(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: Dart, a: Alphas) -> f64 {
+  let (min, max) = g.one_dart_per_incident_orbit(d, Alphas::VERTEX, a).fold(
+    (f64::INFINITY, f64::NEG_INFINITY),
+    |(a, b), d| {
+      let &(x, _) = layout.map().get(&d).expect("missing vertex in layout");
+      (a.min(x), b.max(x))
+    },
+  );
+  max - min
 }

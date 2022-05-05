@@ -1,7 +1,7 @@
-export function get_location(svgSelector, event) {
+export function client_to_svg(svgSelector, x, y) {
   const svg = document.querySelector(svgSelector);
   const pt = svg.createSVGPoint();
-  pt.x = event.clientX;
-  pt.y = event.clientY;
+  pt.x = x;
+  pt.y = y;
   return pt.matrixTransform(svg.getScreenCTM().inverse());
 }
