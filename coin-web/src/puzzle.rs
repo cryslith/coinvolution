@@ -11,6 +11,8 @@ pub enum Msg {
   FaceClick(Dart, f64, f64),
   SelectLayer(usize),
   KeyPressed(String),
+  Backspace,
+  None,
 }
 
 pub enum Marker {
@@ -155,10 +157,12 @@ impl Puzzle {
               [
                 x(center_x),
                 y(center_y),
-                dominant_baseline("middle"),
+                dominant_baseline("central"),
                 text_anchor("middle"),
                 fill(color),
+                lengthAdjust("spacingAndGlyphs"),
                 textLength(w * 2. / 3.),
+                font_size(w * 1.9 / (1f64 + s.len() as f64)),
                 pointer_events("none"),
               ],
               [text(s)],
@@ -275,7 +279,20 @@ impl Application<Msg> for Puzzle {
       }
       Msg::KeyPressed(s) => {
         log!("event: pressed {}", s);
+        if let Some(i) = self.active_layer {
+          let layer = &mut self.layers[i];
+          if let LayerData::String { ref mut data, .. } = layer.data {
+            if let Some(d) = layer.active_dart {
+              let x = data.map().get(&d).cloned().unwrap_or_else(String::new);
+              data.insert(&self.g, d, x + &s);
+            }
+          }
+        }
       }
+      Msg::Backspace => {
+        log!("event: backspace");
+      }
+      Msg::None => {}
     }
     Cmd::none()
   }
@@ -292,12 +309,31 @@ impl Application<Msg> for Puzzle {
         ],
         [
           svg(
-            [id("puzzle"), viewBox([-2, -2, 14, 14]),
-             tabindex(0),
-             on_keydown(|event: KeyboardEvent| {
-               Msg::KeyPressed("A".to_string())
-             })
-],
+            [
+              id("puzzle"),
+              viewBox([-2, -2, 14, 14]),
+              tabindex(0),
+              style("outline", "none"),
+              on_keydown(|event: KeyboardEvent| {
+                if event.alt_key() || event.ctrl_key() || event.meta_key() {
+                  return Msg::None;
+                }
+                let key = event.key();
+                match &key[..] {
+                  "Backspace" => {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    Msg::Backspace
+                  }
+                  _ if key.len() == 1 => {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    Msg::KeyPressed(key)
+                  }
+                  _ => Msg::None,
+                }
+              }),
+            ],
             self
               .view_face_clickers()
               .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),

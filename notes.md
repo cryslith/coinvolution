@@ -11,11 +11,14 @@
 
 Todo:
 - support strings in all basic cell types
+- backspace
 - Fix bug with selecting lines on thin triangles
 - more marker types
 - display selected cell
 - deselect cell
 - convert to orbit representatives
+- test on more grids
+
 
 Goals:
 - Interaction with grids should be as natural as possible
@@ -27,10 +30,6 @@ Goals:
 Non-goals
 - 3D display of any kind
 - Support for dimension higher than 2
-
-Plan:
-- Use face polygons to narrow down clicks to a single face
-- Within a face, use the Voronoi diagram of the half-edges to determine which dart was clicked
 
 Other thoughts:
 - Lots of examples of real puzzles solved with it
