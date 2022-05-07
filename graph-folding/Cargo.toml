@@ -1,0 +1,9 @@
+[package]
+name = "graph-folding"
+version = "0.1.0"
+authors = ["Lily Chung <lkdc@mit.edu>"]
+edition = "2021"
+
+[dependencies]
+gmap = { path = "../gmap" }
+thiserror = "1.0"
