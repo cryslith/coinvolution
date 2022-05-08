@@ -393,12 +393,14 @@ impl GMap {
     })
   }
 
-  /// one dart per a-orbit
+  /// one dart per a-orbit.
+  /// returned darts are lowest-numbered in their a-orbit.
   pub fn one_dart_per_orbit<'a>(&'a self, a: Alphas) -> impl Iterator<Item = Dart> + 'a {
     self.unique_by_orbit((0..self.ndarts()).map(Dart), a)
   }
 
-  /// one dart per i-cell
+  /// one dart per i-cell.
+  /// returned darts are lowest-numbered in their i-cell.
   pub fn one_dart_per_cell<'a>(&'a self, i: usize) -> impl Iterator<Item = Dart> + 'a {
     self.one_dart_per_orbit(Alphas::cell(i))
   }
@@ -652,6 +654,49 @@ impl OrbitReprs {
       }
     }
     self.0.insert(a, v);
+  }
+
+  /// for each dart, return the a-orbit representative.  repeated a-orbits are filtered out
+  pub fn unique_orbit_repr<'a>(
+    &'a self,
+    g: &'a GMap,
+    l: impl IntoIterator<Item = Dart> + 'a,
+    a: Alphas,
+  ) -> impl Iterator<Item = Dart> + 'a {
+    let reprs = self.get_all(a);
+    let mut seen = HashSet::new();
+    l.into_iter().filter_map(move |dart| {
+      if let Some(reprs) = reprs {
+        let r = reprs[dart.0];
+        if seen.contains(&r) {
+          return None;
+        }
+        seen.insert(r);
+        Some(r)
+      } else {
+        if seen.contains(&dart) {
+          return None;
+        }
+        let mut r = dart;
+        for d in g.orbit(dart, a) {
+          if d.0 < r.0 {
+            r = d;
+          }
+          seen.insert(d);
+        }
+        Some(r)
+      }
+    })
+  }
+
+  pub fn orbit_repr_per_incident_orbit<'a>(
+    &'a self,
+    g: &'a GMap,
+    d: Dart,
+    a: Alphas,
+    b: Alphas,
+  ) -> impl Iterator<Item = Dart> + 'a {
+    self.unique_orbit_repr(g, g.orbit(d, b), a)
   }
 }
 
