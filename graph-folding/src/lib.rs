@@ -2,7 +2,7 @@ mod circular;
 
 use std::collections::HashMap;
 
-use circular::{Circular, Node, Data};
+use circular::{Circular, Data, Node};
 use gmap::{Alphas, Dart, GMap, OrbitReprs};
 
 #[derive(Debug)]
@@ -141,32 +141,63 @@ impl Problem {
 
     // during this loop make sure head is any pointer into the correct list
     loop {
-      let (start, end, n, length) = if let Some(x) = find_enclosed_edge_sequence(&tracking, head) {
+      let (start, end, n_S, length) = if let Some(x) = find_enclosed_edge_sequence(&tracking, head)
+      {
         x
       } else {
         // All remaining edges have the same length
         break;
       };
-      if n % 2 == 0 {
+      if n_S % 2 == 0 {
         // |S| is even
+
+        let start_prev = tracking.split(start, end);
+        // add new clause
+        let mountains = n_S / 2;
+        let even_clause = add_vertex(cg, n_S);
+        clause_sizes.insert(even_clause, mountains);
+        clause_colors.insert(even_clause, Color::Red);
+        glue_clause(cg, &tracking, start, even_clause);
+        // resize edge
+        let (_, length_a) = tracking[start_prev].data;
+        let (_, length_b) = tracking[end].data;
+        let new_length = length_a - length + length_b;
+        tracking.mut_data(start_prev).1 = new_length;
+
+        // make sure head remains valid
+        head = start_prev;
       } else {
         // |S| is odd
+
+        let start_prev = tracking.split(start, end);
+        // add first new clause
+        let mountains = (n_S + 1) / 2;
+        let odd_clause = add_vertex(cg, n_S + 1);
+        clause_sizes.insert(odd_clause, mountains);
+        clause_colors.insert(odd_clause, Color::Red);
+        glue_clause(cg, &tracking, start, odd_clause);
+        // add second new clause
+        let odd_clause_2 = add_vertex(cg, 2);
+        clause_sizes.insert(odd_clause_2, 1);
+        clause_colors.insert(odd_clause_2, Color::Blue);
+        cg.sew(0, cg[(odd_clause, 1)], odd_clause_2).unwrap();
+
+        // replace old angles with new angle
+        let (_, end_length) = tracking[end].data;
+        let new_node = tracking.add_node((cg.al(odd_clause_2, [2, 1]), end_length));
+        tracking.splice(start_prev, new_node);
+
+        // make sure head remains valid
+        head = start_prev;
       }
     }
 
-    let remaining: Vec<Node> = tracking.iter(head).collect();
-    let mountains = ((remaining.len() as isize) / 2 + if exterior { 1 } else { -1 }) as usize;
-    let equal_clause = add_vertex(cg, remaining.len());
+    let n_remaining = tracking.iter(head).count();
+    let mountains = ((n_remaining as isize) / 2 + if exterior { 1 } else { -1 }) as usize;
+    let equal_clause = add_vertex(cg, n_remaining);
     clause_sizes.insert(equal_clause, mountains);
     clause_colors.insert(equal_clause, Color::Red);
-    let mut clause_edge = equal_clause;
-    for n in remaining {
-      let Data { data: (angle_edge, _), .. } = tracking[n];
-      // sew the two halves of the edges together
-      cg.sew(0, cg[(angle_edge, 2)], clause_edge).unwrap();
-      // move around the clause counterclockwise
-      clause_edge = cg.al(clause_edge, [2, 1]);
-    }
+    glue_clause(cg, &tracking, head, equal_clause);
     Ok(())
   }
 }
@@ -234,4 +265,18 @@ fn find_enclosed_edge_sequence(
     n += 1;
   }
   return Some((start, end, n, length));
+}
+
+fn glue_clause(cg: &mut GMap, tracking: &Circular<(Dart, Length)>, head: Node, clause: Dart) {
+  let mut clause_edge = clause;
+  for n in tracking.iter(head) {
+    let Data {
+      data: (angle_edge, _),
+      ..
+    } = tracking[n];
+    // sew the two halves of the edges together
+    cg.sew(0, cg[(angle_edge, 2)], clause_edge).unwrap();
+    // move around the clause counterclockwise
+    clause_edge = cg.al(clause_edge, [2, 1]);
+  }
 }

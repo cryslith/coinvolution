@@ -34,6 +34,10 @@ impl<T> Circular<T> {
     Node(n)
   }
 
+  pub fn mut_data(&mut self, n: Node) -> &mut T {
+    &mut self.v[n.0].data
+  }
+
   /// Interchanges pointers to make a.next = b.
   /// Returns the old b.prev
   pub fn splice(&mut self, a: Node, b: Node) -> Node {
