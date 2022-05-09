@@ -5,15 +5,23 @@ use std::fmt;
 use std::ops::Index;
 
 use itertools::{EitherOrBoth, Itertools};
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum GMapError {
+  #[error("Invalid alpha maps given: {0}")]
   InvalidAlpha(String),
+  #[error("Cannot decrease dimension")]
   CannotDecreaseDimension,
+  #[error("Darts are not sewable")]
   Unsewable,
+  #[error("Darts are not unsewable")]
   Ununsewable,
+  #[error("Dart is not free")]
   NotFree,
+  #[error("Dart is already free")]
   AlreadyFree,
+  #[error("Dimensions larger than {} are not supported", MAX_DIMENSION)]
   DimensionTooLarge,
 }
 

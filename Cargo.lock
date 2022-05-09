@@ -71,6 +71,7 @@ name = "gmap"
 version = "0.1.0"
 dependencies = [
  "itertools",
+ "thiserror",
 ]
 
 [[package]]

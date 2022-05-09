@@ -1,18 +1,26 @@
 mod circular;
 
+use circular::{Circular, Data, Node};
+
 use std::collections::HashMap;
 
-use circular::{Circular, Data, Node};
 use gmap::{Alphas, Dart, GMap, OrbitReprs};
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+  #[error("Given angle constraints are inconsistent")]
   BadAngleConstraints,
+  #[error("Violation of Kawasaki-Justin theorem")]
   KawasakiViolation,
+  #[error("Graph must be planar")]
+  Nonplanar,
+  #[error(transparent)]
+  GMap(#[from] gmap::GMapError),
 }
 
-#[derive(PartialEq, Eq)]
-enum Angle {
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum Angle {
   /// 0 degrees
   Valley,
   /// 180 degrees
@@ -21,7 +29,7 @@ enum Angle {
   Mountain,
 }
 
-type Length = i32;
+pub type Length = i32;
 
 enum Color {
   Red,
@@ -36,6 +44,7 @@ pub struct Problem {
   or: OrbitReprs,
   edge_lengths: HashMap<Dart, Length>,
   angle_constraints: HashMap<Dart, Angle>,
+  exterior_face: Dart,
 }
 
 pub struct Constraints {
@@ -47,6 +56,29 @@ pub struct Constraints {
 }
 
 impl Problem {
+  pub fn with_exterior(
+    g: GMap,
+    edge_lengths: HashMap<Dart, Length>,
+    angle_constraints: HashMap<Dart, Angle>,
+    exterior_face: Dart,
+  ) -> Result<Self, Error> {
+    if g.dimension() != 2 {
+      // should implement more robust planarity checking
+      return Err(Error::Nonplanar);
+    }
+    let mut or = OrbitReprs::new();
+    or.build(&g, Alphas::ANGLE);
+    let mut x = Self {
+      g,
+      or,
+      edge_lengths,
+      angle_constraints,
+      exterior_face,
+    };
+    x.preprocess_angle_constraints()?;
+    Ok(x)
+  }
+
   fn preprocess_angle_constraints(&mut self) -> Result<(), Error> {
     for vertex in self.g.one_dart_per_cell(0) {
       let angles: Vec<Dart> = self
@@ -77,11 +109,23 @@ impl Problem {
 
   /// compute the constraint graph
   pub fn constraint_graph(&self) -> Result<Constraints, Error> {
-    todo!()
+    let mut constraints = Constraints {
+      cg: GMap::empty(2)?,
+      clause_sizes: HashMap::new(),
+      clause_colors: HashMap::new(),
+      angle_to_cg: HashMap::new(),
+    };
+    for vertex in self.g.one_dart_per_cell(0) {
+      self.process_vertex(vertex, &mut constraints)?;
+    }
+    for face in self.g.one_dart_per_cell(2) {
+      self.process_face(face, &mut constraints, face == self.exterior_face)?;
+    }
+    Ok(constraints)
   }
 
   /// compute the constraint on angles around the vertex
-  fn process_vertex(&mut self, vertex: Dart, constraints: &mut Constraints) -> Result<(), Error> {
+  fn process_vertex(&self, vertex: Dart, constraints: &mut Constraints) -> Result<(), Error> {
     let Constraints {
       cg,
       clause_sizes,
@@ -122,7 +166,6 @@ impl Problem {
     constraints: &mut Constraints,
     exterior: bool,
   ) -> Result<(), Error> {
-    let g = &self.g;
     let Constraints {
       cg,
       clause_sizes,
@@ -268,8 +311,6 @@ impl Problem {
       Err(Error::KawasakiViolation)
     }
   }
-
-  // fn process_nonflat_constraints(&mut self,
 }
 
 fn add_vertex(g: &mut GMap, n: usize) -> Dart {
