@@ -2,7 +2,7 @@ mod circular;
 
 use std::collections::HashMap;
 
-use circular::{Node, Circular};
+use circular::{Circular, Node, Data};
 use gmap::{Alphas, Dart, GMap, OrbitReprs};
 
 #[derive(Debug)]
@@ -105,9 +105,8 @@ impl Problem {
   ) -> Result<(), Error> {
     let g = &self.g;
 
-    // map from cg counterclockwise darts to tracking information:
-    // prev (clockwise), next (counterclockwise), length of edge immediately counterclockwise
-    let mut tracking: HashMap<Dart, (Dart, Dart, Length)> = HashMap::new();
+    // circular list in counterclockwise order of (cg counterclockwise dart for angle, length of edge immediately counterclockwise)
+    let mut tracking: Circular<(Dart, Length)> = Circular::new();
     let mut nonflat: Vec<Dart> = vec![];
     let mut a = face;
     loop {
@@ -123,19 +122,22 @@ impl Problem {
       return Err(Error::BadAngleConstraints);
     }
 
+    let mut prev_node = None;
     for (i, a) in nonflat.iter().enumerate() {
-      let cga = angle_to_cg[&a];  
+      let cga = angle_to_cg[&a];
       let length = todo!("compute length in counterclockwise direction");
-      let prev_index = if i == 0 { nonflat.len() - 1 } else { i - 1 };
-      let next_index = if i == nonflat.len() - 1 { 0 } else { i + 1 };
-      tracking.insert(cga, (nonflat[prev_index], nonflat[next_index], length));
+      let new_node = tracking.add_node((cga, length));
+      if let Some(prev_node) = prev_node {
+        tracking.splice(prev_node, new_node);
+      }
+      prev_node = Some(new_node);
     }
+    let head = prev_node.unwrap();
 
     todo!("verify kawasaki's theorem here to avoid any issues later");
 
-    let mut head = nonflat[0];
     loop {
-      let (start, end, n, length) = if let Some(x) = find_enclosed_edge_sequence(head, &tracking) {
+      let (start, end, n, length) = if let Some(x) = find_enclosed_edge_sequence(&tracking, head) {
         x
       } else {
         // all edges are the same length
@@ -143,16 +145,13 @@ impl Problem {
       };
       if n % 2 == 0 {
         // |S| is even
-        
       } else {
         // |S| is odd
-
       }
     }
 
     todo!()
   }
-
 }
 
 fn add_vertex(g: &mut GMap, n: usize) -> Dart {
@@ -173,35 +172,44 @@ fn add_vertex(g: &mut GMap, n: usize) -> Dart {
   start
 }
 
-// start, end, number of angles in S, length of enclosed edges
-fn find_enclosed_edge_sequence(head: Dart, tracking: &HashMap<Dart, (Dart, Dart, Length)>) -> Option<(Dart, Dart, usize, Length)> {
+// start, end, number of angles in S, length of enclosed edges.
+// note that the "end" node will have a larger length (as will start.prev)
+fn find_enclosed_edge_sequence(
+  tracking: &Circular<(Dart, Length)>,
+  head: Node,
+) -> Option<(Node, Node, usize, Length)> {
   // this is a theoretically inefficient implementation,
   // but it's more practical than the one in the paper for now.
   // a middle ground would be to track information about contiguous
   // runs of edges on each edge (rather than constructing a new linked list).
   // this information would also include whether the run has larger or smaller edges than the adjacent runs.
 
-  let mut length = None;
+  let mut prev_length = None;
   let mut start = head;
   // find where the length decreases
   let length = loop {
-    let (_, next, l) = tracking[&start];
-    if let Some(length) = length {
-      if l < length {
+    let Data {
+      next, data: (_, l), ..
+    } = tracking[start];
+    if let Some(prev_length) = prev_length {
+      if l < prev_length {
         break l;
       }
     }
-    length = Some(l);
-    start = next;
-    if start == head {
+    if start == head && prev_length.is_some() {
+      // all edges have the same length
       return None;
     }
+    prev_length = Some(l);
+    start = next;
   };
-  // find where length increases;
+  // find where length increases
   let mut end = start;
   let mut n = 1;
   loop {
-    let (_, next, l) = tracking[&end];
+    let Data {
+      next, data: (_, l), ..
+    } = tracking[end];
     if l > length {
       break;
     }
