@@ -17,9 +17,7 @@ pub struct Circular<T> {
 
 impl<T> Circular<T> {
   pub fn new() -> Self {
-    Self {
-      v: vec![],
-    }
+    Self { v: vec![] }
   }
 
   fn m(&mut self, n: Node) -> &mut Data<T> {
@@ -53,6 +51,18 @@ impl<T> Circular<T> {
   /// Returns the old a.prev
   pub fn split(&mut self, a: Node, b: Node) -> Node {
     self.splice(b, a)
+  }
+
+  pub fn iter(&self, start: Node) -> impl Iterator<Item = Node> + '_ {
+    let mut n = start;
+    std::iter::once(start).chain(std::iter::from_fn(move || {
+      n = self[n].next;
+      if n == start {
+        None
+      } else {
+        Some(n)
+      }
+    }))
   }
 }
 

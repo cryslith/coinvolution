@@ -102,6 +102,9 @@ impl Problem {
     face: Dart,
     angle_to_cg: HashMap<Dart, Dart>,
     cg: &mut GMap,
+    clause_sizes: &mut HashMap<Dart, usize>,
+    clause_colors: &mut HashMap<Dart, Color>,
+    exterior: bool,
   ) -> Result<(), Error> {
     let g = &self.g;
 
@@ -132,15 +135,16 @@ impl Problem {
       }
       prev_node = Some(new_node);
     }
-    let head = prev_node.unwrap();
+    let mut head = prev_node.unwrap();
 
     todo!("verify kawasaki's theorem here to avoid any issues later");
 
+    // during this loop make sure head is any pointer into the correct list
     loop {
       let (start, end, n, length) = if let Some(x) = find_enclosed_edge_sequence(&tracking, head) {
         x
       } else {
-        // all edges are the same length
+        // All remaining edges have the same length
         break;
       };
       if n % 2 == 0 {
@@ -150,7 +154,20 @@ impl Problem {
       }
     }
 
-    todo!()
+    let remaining: Vec<Node> = tracking.iter(head).collect();
+    let mountains = ((remaining.len() as isize) / 2 + if exterior { 1 } else { -1 }) as usize;
+    let equal_clause = add_vertex(cg, remaining.len());
+    clause_sizes.insert(equal_clause, mountains);
+    clause_colors.insert(equal_clause, Color::Red);
+    let mut clause_edge = equal_clause;
+    for n in remaining {
+      let Data { data: (angle_edge, _), .. } = tracking[n];
+      // sew the two halves of the edges together
+      cg.sew(0, cg[(angle_edge, 2)], clause_edge).unwrap();
+      // move around the clause counterclockwise
+      clause_edge = cg.al(clause_edge, [2, 1]);
+    }
+    Ok(())
   }
 }
 
