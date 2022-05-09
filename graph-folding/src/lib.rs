@@ -6,7 +6,7 @@ use circular::{Circular, Data, Node};
 use gmap::{Alphas, Dart, GMap, OrbitReprs};
 
 #[derive(Debug)]
-enum Error {
+pub enum Error {
   BadAngleConstraints,
   KawasakiViolation,
 }
@@ -75,15 +75,20 @@ impl Problem {
     Ok(())
   }
 
+  /// compute the constraint graph
+  pub fn constraint_graph(&self) -> Result<Constraints, Error> {
+    todo!()
+  }
+
   /// compute the constraint on angles around the vertex
-  fn vertex_constraint(
-    &mut self,
-    vertex: Dart,
-    cg: &mut GMap,
-    clause_sizes: &mut HashMap<Dart, usize>,
-    clause_colors: &mut HashMap<Dart, Color>,
-    angle_to_cg: &mut HashMap<Dart, Dart>,
-  ) -> Result<(), Error> {
+  fn process_vertex(&mut self, vertex: Dart, constraints: &mut Constraints) -> Result<(), Error> {
+    let Constraints {
+      cg,
+      clause_sizes,
+      clause_colors,
+      angle_to_cg,
+    } = constraints;
+
     let mut nonflat: Vec<Dart> = vec![];
     let mut a = vertex;
     loop {
@@ -111,43 +116,25 @@ impl Problem {
     Ok(())
   }
 
-  /// compute the constraint graph
-  pub fn constraint_graph(&self) -> Result<(), Error> {
-    todo!()
-  }
-
   fn process_face(
     &self,
     face: Dart,
-    angle_to_cg: HashMap<Dart, Dart>,
-    cg: &mut GMap,
-    clause_sizes: &mut HashMap<Dart, usize>,
-    clause_colors: &mut HashMap<Dart, Color>,
+    constraints: &mut Constraints,
     exterior: bool,
   ) -> Result<(), Error> {
     let g = &self.g;
+    let Constraints {
+      cg,
+      clause_sizes,
+      clause_colors,
+      angle_to_cg,
+    } = constraints;
 
     // circular list in counterclockwise order of (cg counterclockwise dart for angle, length of edge immediately counterclockwise)
     let mut tracking: Circular<(Dart, Length)> = Circular::new();
-    let mut nonflat: Vec<Dart> = vec![];
-    let mut a = face;
-    loop {
-      if self.angle_constraints.get(&a) != Some(&Angle::Flat) {
-        nonflat.push(a);
-      }
-      a = g.al(a, [1, 0]);
-      if a == face {
-        break;
-      }
-    }
-    if nonflat.len() == 0 || nonflat.len() % 2 != 0 {
-      return Err(Error::BadAngleConstraints);
-    }
-
     let mut prev_node = None;
-    for (i, a) in nonflat.iter().enumerate() {
+    for &(a, length) in self.nonflat_lengths(face)?.iter() {
       let cga = angle_to_cg[&a];
-      let length = todo!("compute length in counterclockwise direction");
       let new_node = tracking.add_node((cga, length));
       if let Some(prev_node) = prev_node {
         tracking.splice(prev_node, new_node);
@@ -156,7 +143,7 @@ impl Problem {
     }
     let mut head = prev_node.unwrap();
 
-    todo!("verify kawasaki's theorem here to avoid any issues later");
+    self.check_kawasaki(&tracking, head)?;
 
     // during this loop make sure head is any pointer into the correct list
     loop {
@@ -220,6 +207,69 @@ impl Problem {
     glue_clause(cg, &tracking, head, equal_clause);
     Ok(())
   }
+
+  /// Returns a counterclockwise-ordered vector of (angle, flat length immediately counterclockwise)
+  fn nonflat_lengths(&self, face: Dart) -> Result<Vec<(Dart, Length)>, Error> {
+    let g = &self.g;
+    let mut nonflat: Vec<(Dart, Length)> = vec![];
+    let mut a = face;
+    // find nonflat angle to start at
+    loop {
+      if self.angle_constraints.get(&a) != Some(&Angle::Flat) {
+        break;
+      }
+      a = g.al(a, [1, 0]);
+      if a == face {
+        // no nonflat angles
+        return Err(Error::BadAngleConstraints);
+      }
+    }
+    let start = a;
+    loop {
+      let current_nonflat = a;
+      let mut length_counter = 0;
+      a = g.al(a, [1, 0]);
+      loop {
+        length_counter += self.edge_lengths[&a];
+        if self.angle_constraints.get(&a) != Some(&Angle::Flat) {
+          break;
+        }
+        a = g.al(a, [1, 0]);
+      }
+      nonflat.push((current_nonflat, length_counter));
+      if a == start {
+        break;
+      }
+    }
+    if nonflat.len() % 2 != 0 {
+      return Err(Error::BadAngleConstraints);
+    }
+    Ok(nonflat)
+  }
+
+  /// Verify the Kawasaki-Justin theorem holds for the provided lengths
+  fn check_kawasaki(&self, tracking: &Circular<(Dart, Length)>, head: Node) -> Result<(), Error> {
+    let mut length_total = 0;
+    let mut b = true;
+    for n in tracking.iter(head) {
+      let Data {
+        data: (_, length), ..
+      } = tracking[n];
+      if b {
+        length_total += length;
+      } else {
+        length_total -= length;
+      }
+      b = !b;
+    }
+    if length_total == 0 {
+      Ok(())
+    } else {
+      Err(Error::KawasakiViolation)
+    }
+  }
+
+  // fn process_nonflat_constraints(&mut self,
 }
 
 fn add_vertex(g: &mut GMap, n: usize) -> Dart {
