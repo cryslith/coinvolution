@@ -213,6 +213,7 @@ impl GMap {
   }
 
   pub fn add_polygon(&mut self, n: usize) -> Dart {
+    // XXX should panic if n is too small
     let start = self.add_edge();
     let mut prev = self[(start, 0)];
     for _ in 0..(n - 1) {
