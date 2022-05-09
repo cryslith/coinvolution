@@ -36,26 +36,23 @@ impl<T> Circular<T> {
     Node(n)
   }
 
-  /// Splice two lists together making a.next = b
-  pub fn splice(&mut self, a: Node, b: Node) {
+  /// Interchanges pointers to make a.next = b.
+  /// Returns the old b.prev
+  pub fn splice(&mut self, a: Node, b: Node) -> Node {
     let an = self[a].next;
     let bp = self[b].prev;
     self.m(a).next = b;
     self.m(b).prev = a;
     self.m(an).prev = bp;
     self.m(bp).next = an;
+    bp
   }
 
-  /// Split out a section of a list, making b.next = a.
+  /// Split out the section of list between b and a,
+  /// making b.next = a.
   /// Returns the old a.prev
   pub fn split(&mut self, a: Node, b: Node) -> Node {
-    let ap = self[a].prev;
-    let bn = self[b].next;
-    self.m(a).prev = b;
-    self.m(b).next = a;
-    self.m(ap).next = bn;
-    self.m(bn).prev = ap;
-    ap
+    self.splice(b, a)
   }
 }
 
