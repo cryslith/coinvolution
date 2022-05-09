@@ -28,7 +28,7 @@ enum Color {
   Blue,
 }
 
-struct Problem {
+pub struct Problem {
   // planar graph with exterior face included.
   // must be oriented in the sense that the lower-numbered
   // dart in every angle points counterclockwise in its face.
@@ -36,6 +36,14 @@ struct Problem {
   or: OrbitReprs,
   edge_lengths: HashMap<Dart, Length>,
   angle_constraints: HashMap<Dart, Angle>,
+}
+
+pub struct Constraints {
+  cg: GMap,
+  clause_sizes: HashMap<Dart, usize>,
+  clause_colors: HashMap<Dart, Color>,
+  /// correspondence map from Problem.g angles to cg darts
+  angle_to_cg: HashMap<Dart, Dart>,
 }
 
 impl Problem {
@@ -74,26 +82,37 @@ impl Problem {
     cg: &mut GMap,
     clause_sizes: &mut HashMap<Dart, usize>,
     clause_colors: &mut HashMap<Dart, Color>,
+    angle_to_cg: &mut HashMap<Dart, Dart>,
   ) -> Result<(), Error> {
-    let angles =
-      self
-        .or
-        .orbit_repr_per_incident_orbit(&self.g, vertex, Alphas::ANGLE, Alphas::VERTEX);
-    let nonflat: Vec<Dart> = angles
-      .filter(|d| self.angle_constraints.get(d) != Some(&Angle::Flat))
-      .collect();
+    let mut nonflat: Vec<Dart> = vec![];
+    let mut a = vertex;
+    loop {
+      if self.angle_constraints.get(&a) != Some(&Angle::Flat) {
+        nonflat.push(a);
+      }
+      // counterclockwise
+      a = self.g.al(a, [2, 1]);
+      if a == vertex {
+        break;
+      }
+    }
+
     if nonflat.len() == 0 {
       return Ok(());
     }
-    let cv = add_vertex(cg, nonflat.len());
+    let mut cv = add_vertex(cg, nonflat.len());
     clause_sizes.insert(cv, 1);
     clause_colors.insert(cv, Color::Blue);
+    for a in nonflat {
+      angle_to_cg.insert(a, cv);
+      // counterclockwise
+      cv = cg.al(cv, [2, 1]);
+    }
     Ok(())
   }
 
-  /// compute the constraints and additional variables on the faces,
-  /// producing the planar constraint graph
-  fn face_constraints(&self) -> Result<(), Error> {
+  /// compute the constraint graph
+  pub fn constraint_graph(&self) -> Result<(), Error> {
     todo!()
   }
 
@@ -141,6 +160,7 @@ impl Problem {
 
     // during this loop make sure head is any pointer into the correct list
     loop {
+      #[allow(non_snake_case)]
       let (start, end, n_S, length) = if let Some(x) = find_enclosed_edge_sequence(&tracking, head)
       {
         x
