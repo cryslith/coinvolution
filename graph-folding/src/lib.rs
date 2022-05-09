@@ -1,5 +1,8 @@
+mod circular;
+
 use std::collections::HashMap;
 
+use circular::{Node, Circular};
 use gmap::{Alphas, Dart, GMap, OrbitReprs};
 
 #[derive(Debug)]
@@ -18,7 +21,7 @@ enum Angle {
   Mountain,
 }
 
-type Length = u32;
+type Length = i32;
 
 enum Color {
   Red,
@@ -103,7 +106,7 @@ impl Problem {
     let g = &self.g;
 
     // map from cg counterclockwise darts to tracking information:
-    // prev, next, clockwise edge length
+    // prev (clockwise), next (counterclockwise), length of edge immediately counterclockwise
     let mut tracking: HashMap<Dart, (Dart, Dart, Length)> = HashMap::new();
     let mut nonflat: Vec<Dart> = vec![];
     let mut a = face;
@@ -121,15 +124,35 @@ impl Problem {
     }
 
     for (i, a) in nonflat.iter().enumerate() {
-      let cga = angle_to_cg[&a];
-      let length = self.edge_lengths[&a];
+      let cga = angle_to_cg[&a];  
+      let length = todo!("compute length in counterclockwise direction");
       let prev_index = if i == 0 { nonflat.len() - 1 } else { i - 1 };
       let next_index = if i == nonflat.len() - 1 { 0 } else { i + 1 };
       tracking.insert(cga, (nonflat[prev_index], nonflat[next_index], length));
     }
 
+    todo!("verify kawasaki's theorem here to avoid any issues later");
+
+    let mut head = nonflat[0];
+    loop {
+      let (start, end, n, length) = if let Some(x) = find_enclosed_edge_sequence(head, &tracking) {
+        x
+      } else {
+        // all edges are the same length
+        break;
+      };
+      if n % 2 == 0 {
+        // |S| is even
+        
+      } else {
+        // |S| is odd
+
+      }
+    }
+
     todo!()
   }
+
 }
 
 fn add_vertex(g: &mut GMap, n: usize) -> Dart {
@@ -148,4 +171,42 @@ fn add_vertex(g: &mut GMap, n: usize) -> Dart {
   }
   g.sew(2, start, prev).unwrap();
   start
+}
+
+// start, end, number of angles in S, length of enclosed edges
+fn find_enclosed_edge_sequence(head: Dart, tracking: &HashMap<Dart, (Dart, Dart, Length)>) -> Option<(Dart, Dart, usize, Length)> {
+  // this is a theoretically inefficient implementation,
+  // but it's more practical than the one in the paper for now.
+  // a middle ground would be to track information about contiguous
+  // runs of edges on each edge (rather than constructing a new linked list).
+  // this information would also include whether the run has larger or smaller edges than the adjacent runs.
+
+  let mut length = None;
+  let mut start = head;
+  // find where the length decreases
+  let length = loop {
+    let (_, next, l) = tracking[&start];
+    if let Some(length) = length {
+      if l < length {
+        break l;
+      }
+    }
+    length = Some(l);
+    start = next;
+    if start == head {
+      return None;
+    }
+  };
+  // find where length increases;
+  let mut end = start;
+  let mut n = 1;
+  loop {
+    let (_, next, l) = tracking[&end];
+    if l > length {
+      break;
+    }
+    end = next;
+    n += 1;
+  }
+  return Some((start, end, n, length));
 }
