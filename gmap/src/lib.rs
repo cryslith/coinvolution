@@ -220,17 +220,31 @@ impl GMap {
     d0
   }
 
-  pub fn add_polygon(&mut self, n: usize) -> Dart {
-    // XXX should panic if n is too small
-    let start = self.add_edge();
-    let mut prev = self[(start, 0)];
-    for _ in 0..(n - 1) {
-      let c = self.add_edge();
-      self.link(1, prev, c).unwrap();
-      prev = self[(c, 0)];
+  /// Add a cycle of 2n darts related alternately by i and j links.
+  /// Returns the lowest-numbered dart.
+  /// The lower-numbered dart in each i-link has the same parity
+  /// in the cycle as the lowest.
+  pub fn add_cycle(&mut self, i: usize, j: usize, n: usize) -> Dart {
+    if n < 1 {
+      panic!("n must be positive");
     }
-    self.link(1, start, prev).unwrap();
+    let start = self.add_dart();
+    let start1 = self.add_dart();
+    self.link(i, start, start1).unwrap();
+    let mut prev = start1;
+    for _ in 0..(n - 1) {
+      let d0 = self.add_dart();
+      self.link(j, prev, d0).unwrap();
+      let d1 = self.add_dart();
+      self.link(i, d0, d1).unwrap();
+      prev = d1;
+    }
+    self.link(j, prev, start).unwrap();
     start
+  }
+
+  pub fn add_polygon(&mut self, n: usize) -> Dart {
+    self.add_cycle(1, 0, n)
   }
 
   fn plane_orbit_indices(&self, d: Dart, a: Alphas) -> Option<OrbitImpl<'_>> {
@@ -437,6 +451,27 @@ impl GMap {
   }
 }
 
+impl fmt::Debug for GMap {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let width = (self.ndarts() - 1).to_string().len();
+    write!(f, "GMap {{\n")?;
+    write!(f, "  dimension: {}\n", self.dimension)?;
+    write!(f, "  alphas: {{\n")?;
+    for i in 0..self.ndarts() {
+      write!(
+        f,
+        "    {:width$}: [{}],\n",
+        i,
+        (0..=self.dimension)
+          .map(|j| format!("{:width$}", self[(Dart(i), j)].0, width = width))
+          .join(", "),
+        width = width,
+      )?;
+    }
+    write!(f, "}}}}")
+  }
+}
+
 struct Orbit<'a> {
   g: &'a GMap,
   a: Alphas,
@@ -619,6 +654,7 @@ where
 /// Maintains a single representative for each orbit, defined as the lowest-numbered dart for that orbit.
 /// Can be potentially more efficient (but less convenient) than OrbitMap,
 /// especially when many maps over the same orbits are used.
+#[derive(Debug)]
 pub struct OrbitReprs(HashMap<Alphas, Vec<Dart>>);
 
 impl OrbitReprs {

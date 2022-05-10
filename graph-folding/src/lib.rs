@@ -19,7 +19,7 @@ pub enum Error {
   GMap(#[from] gmap::GMapError),
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Angle {
   /// 0 degrees
   Valley,
@@ -31,11 +31,13 @@ pub enum Angle {
 
 pub type Length = i32;
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Color {
   Red,
   Blue,
 }
 
+#[derive(Debug)]
 pub struct Problem {
   // planar graph with exterior face included.
   // must be oriented in the sense that the lower-numbered
@@ -47,6 +49,7 @@ pub struct Problem {
   exterior_face: Dart,
 }
 
+#[derive(Debug)]
 pub struct Constraints {
   cg: GMap,
   clause_sizes: HashMap<Dart, usize>,
@@ -67,7 +70,8 @@ impl Problem {
       return Err(Error::Nonplanar);
     }
     let mut or = OrbitReprs::new();
-    or.build(&g, Alphas::ANGLE);
+    or.ensure_all(&g, Alphas::ANGLE);
+    or.ensure_all(&g, Alphas::EDGE);
     let mut x = Self {
       g,
       or,
@@ -273,7 +277,7 @@ impl Problem {
       let mut length_counter = 0;
       a = g.al(a, [1, 0]);
       loop {
-        length_counter += self.edge_lengths[&a];
+        length_counter += self.edge_lengths[&self.or[(Alphas::EDGE, a)]];
         if self.angle_constraints.get(&a) != Some(&Angle::Flat) {
           break;
         }
@@ -389,5 +393,77 @@ fn glue_clause(cg: &mut GMap, tracking: &Circular<(Dart, Length)>, head: Node, c
     cg.sew(0, cg[(angle_edge, 2)], clause_edge).unwrap();
     // move around the clause counterclockwise
     clause_edge = cg.al(clause_edge, [2, 1]);
+  }
+}
+
+pub mod examples {
+  use super::Problem;
+
+  use std::collections::HashMap;
+
+  use gmap::{Alphas, Dart, GMap, OrbitReprs};
+
+  // start should be a counterclockwise dart
+  pub fn wrap_exterior(g: &mut GMap, start: Dart) -> Dart {
+    let mut interior_boundary = vec![];
+    // start with a clockwise dart
+    let start = g[(start, 0)];
+    let mut d = start;
+    loop {
+      // traverse clockwise
+      interior_boundary.push(d);
+      d = if let Some(n) = g.cell(d, 0).find(|&n| n != d && g.is_free(n, 2)) {
+        n
+      } else {
+        break;
+      };
+      d = g[(d, 0)];
+      if d == start {
+        break;
+      }
+    }
+    let ext = g.add_polygon(interior_boundary.len());
+    let mut d2 = ext;
+    for d in interior_boundary {
+      g.sew(2, d, d2).unwrap();
+      // clockwise for the interior is counterclockwise around the exterior
+      d2 = g.al(d2, [1, 0]);
+    }
+    ext
+  }
+
+  pub fn kite() -> Problem {
+    let mut g = GMap::empty(2).unwrap();
+    let mut edge_lengths = HashMap::new();
+    let angle_constraints = HashMap::new();
+
+    let f = g.add_polygon(4);
+    let ext = wrap_exterior(&mut g, f);
+
+    let mut or = OrbitReprs::new();
+    or.ensure_all(&g, Alphas::EDGE);
+
+    for (edge, length) in [
+      (f, 1),
+      (g.al(f, [1, 0]), 1),
+      (g.al(f, [1, 0, 1, 0]), 2),
+      (g.al(f, [1, 0, 1, 0, 1, 0]), 2),
+    ] {
+      edge_lengths.insert(or[(Alphas::EDGE, edge)], length);
+    }
+
+    Problem::with_exterior(g, edge_lengths, angle_constraints, ext).unwrap()
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  pub fn fold_kite() {
+    let problem = examples::kite();
+    let constraints = problem.constraint_graph().unwrap();
+    dbg!(problem, constraints);
   }
 }
