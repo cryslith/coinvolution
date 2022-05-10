@@ -318,21 +318,7 @@ impl Problem {
 }
 
 fn add_vertex(g: &mut GMap, n: usize) -> Dart {
-  if n < 1 {
-    panic!("vertex must have at least one edge");
-  }
-  let start = g.add_dart();
-  let mut prev = g.add_dart();
-  g.sew(1, start, prev).unwrap();
-  for _ in 0..(n - 1) {
-    let d0 = g.add_dart();
-    let d1 = g.add_dart();
-    g.sew(1, d0, d1).unwrap();
-    g.sew(2, d0, prev).unwrap();
-    prev = d1;
-  }
-  g.sew(2, start, prev).unwrap();
-  start
+  g.add_cycle(1, 2, n)
 }
 
 // start, end, number of angles in S, length of enclosed edges.
