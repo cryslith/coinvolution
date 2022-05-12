@@ -32,7 +32,7 @@ pub enum Angle {
 pub type Length = i32;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum Color {
+pub enum Color {
   Red,
   Blue,
 }
@@ -81,6 +81,22 @@ impl Problem {
     };
     x.preprocess_angle_constraints()?;
     Ok(x)
+  }
+
+  pub fn g(&self) -> &GMap {
+    &self.g
+  }
+
+  pub fn edge_lengths(&self) -> &HashMap<Dart, Length> {
+    &self.edge_lengths
+  }
+
+  pub fn angle_constraints(&self) -> &HashMap<Dart, Angle> {
+    &self.angle_constraints
+  }
+
+  pub fn exterior_face(&self) -> Dart {
+    self.exterior_face
   }
 
   fn preprocess_angle_constraints(&mut self) -> Result<(), Error> {
@@ -379,6 +395,24 @@ fn glue_clause(cg: &mut GMap, tracking: &Circular<(Dart, Length)>, head: Node, c
     cg.sew(0, cg[(angle_edge, 2)], clause_edge).unwrap();
     // move around the clause counterclockwise
     clause_edge = cg.al(clause_edge, [2, 1]);
+  }
+}
+
+impl Constraints {
+  pub fn cg(&self) -> &GMap {
+    &self.cg
+  }
+
+  pub fn clause_sizes(&self) -> &HashMap<Dart, usize> {
+    &self.clause_sizes
+  }
+
+  pub fn clause_colors(&self) -> &HashMap<Dart, Color> {
+    &self.clause_colors
+  }
+
+  pub fn angle_to_cg(&self) -> &HashMap<Dart, Dart> {
+    &self.angle_to_cg
   }
 }
 
