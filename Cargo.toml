@@ -4,6 +4,7 @@ members = [
     "gmap",
     "coin-web",
     "graph-folding",
+    "graph-folding-web",
 ]
 
 
