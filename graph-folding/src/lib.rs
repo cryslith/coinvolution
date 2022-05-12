@@ -220,6 +220,7 @@ impl Problem {
       };
       if n_S % 2 == 0 {
         // |S| is even
+        dbg!(n_S);
 
         let start_prev = tracking.split(start, end);
         // add new clause
@@ -232,6 +233,7 @@ impl Problem {
         let (_, length_a) = tracking[start_prev].data;
         let (_, length_b) = tracking[end].data;
         let new_length = length_a - length + length_b;
+        dbg!(length_a, length, length_b);
         tracking.mut_data(start_prev).1 = new_length;
 
         // make sure head remains valid
@@ -263,7 +265,7 @@ impl Problem {
     }
 
     let n_remaining = tracking.iter(head).count();
-    let mountains = ((n_remaining as isize) / 2 + if exterior { 1 } else { -1 }) as usize;
+    let mountains = if exterior { n_remaining / 2 + 1 } else { n_remaining / 2 - 1};
     let equal_clause = add_vertex(cg, n_remaining);
     clause_sizes.insert(equal_clause, mountains);
     clause_colors.insert(equal_clause, Color::Red);
@@ -325,6 +327,10 @@ impl Problem {
       }
       b = !b;
     }
+    if !b {
+      // odd number of edges
+      return Err(Error::KawasakiViolation);
+    }
     if length_total == 0 {
       Ok(())
     } else {
@@ -352,7 +358,7 @@ fn find_enclosed_edge_sequence(
   let mut prev_length = None;
   let mut start = head;
   // find where the length decreases
-  let length = loop {
+  let mut length = loop {
     let Data {
       next, data: (_, l), ..
     } = tracking[start];
@@ -377,6 +383,12 @@ fn find_enclosed_edge_sequence(
     } = tracking[end];
     if l > length {
       break;
+    }
+    if l < length {
+      // start over
+      start = end;
+      length = l;
+      n = 1;
     }
     end = next;
     n += 1;
@@ -421,7 +433,7 @@ pub mod examples {
 
   use std::collections::HashMap;
 
-  use gmap::{Alphas, Dart, GMap, OrbitReprs};
+  use gmap::{Alphas, Dart, GMap, OrbitReprs, grids::square};
 
   // start should be a counterclockwise dart
   pub fn wrap_exterior(g: &mut GMap, start: Dart) -> Dart {
@@ -452,6 +464,8 @@ pub mod examples {
     ext
   }
 
+  // TODO abstract single-polygon examples into a single function
+
   pub fn kite() -> Problem {
     let mut g = GMap::empty(2).unwrap();
     let mut edge_lengths = HashMap::new();
@@ -474,6 +488,118 @@ pub mod examples {
 
     Problem::with_exterior(g, edge_lengths, angle_constraints, ext).unwrap()
   }
+
+  pub fn trapezoid() -> Problem {
+    let mut g = GMap::empty(2).unwrap();
+    let mut edge_lengths = HashMap::new();
+    let angle_constraints = HashMap::new();
+
+    let f = g.add_polygon(4);
+    let ext = wrap_exterior(&mut g, f);
+
+    let mut or = OrbitReprs::new();
+    or.ensure_all(&g, Alphas::EDGE);
+
+    for (edge, length) in [
+      (f, 1),
+      (g.al(f, [1, 0]), 2),
+      (g.al(f, [1, 0, 1, 0]), 3),
+      (g.al(f, [1, 0, 1, 0, 1, 0]), 2),
+    ] {
+      edge_lengths.insert(or[(Alphas::EDGE, edge)], length);
+    }
+
+    Problem::with_exterior(g, edge_lengths, angle_constraints, ext).unwrap()
+  }
+
+  pub fn square_grid(n: usize) -> Problem {
+    let (mut g, squares) = square::new(n, n);
+    let mut edge_lengths = HashMap::new();
+    let angle_constraints = HashMap::new();
+
+    let ext = wrap_exterior(&mut g, squares[0][0]);
+
+    // let mut or = OrbitReprs::new();
+    // or.ensure_all(&g, Alphas::EDGE);
+    for edge in g.one_dart_per_cell(1) {
+      edge_lengths.insert(edge, 1);
+    }
+
+    Problem::with_exterior(g, edge_lengths, angle_constraints, ext).unwrap()
+  }
+
+  pub fn big_kite(n: usize) -> Problem {
+    let mut g = GMap::empty(2).unwrap();
+    let mut edge_lengths = HashMap::new();
+    let angle_constraints = HashMap::new();
+
+    let f = g.add_polygon(2 * n);
+    let ext = wrap_exterior(&mut g, f);
+
+    let mut or = OrbitReprs::new();
+    or.ensure_all(&g, Alphas::EDGE);
+
+    let mut d = f;
+    for i in 0..(2*n) {
+      let length = if i + 1 <= n {
+        i + 1
+      } else {
+        2*n - i
+      } as i32;
+      edge_lengths.insert(or[(Alphas::EDGE, d)], length);
+      
+      d = g.al(d, [1, 0]);
+    }
+
+    Problem::with_exterior(g, edge_lengths, angle_constraints, ext).unwrap()
+  }
+
+  pub fn regular(n: usize) -> Problem {
+    let mut g = GMap::empty(2).unwrap();
+    let mut edge_lengths = HashMap::new();
+    let angle_constraints = HashMap::new();
+
+    let f = g.add_polygon(2 * n);
+    let ext = wrap_exterior(&mut g, f);
+
+    let mut or = OrbitReprs::new();
+    or.ensure_all(&g, Alphas::EDGE);
+
+    let mut d = f;
+    for _ in 0..(2*n) {
+      edge_lengths.insert(or[(Alphas::EDGE, d)], 1);
+      
+      d = g.al(d, [1, 0]);
+    }
+
+    Problem::with_exterior(g, edge_lengths, angle_constraints, ext).unwrap()
+  }
+
+  pub fn big_arc(n: usize) -> Problem {
+    let mut g = GMap::empty(2).unwrap();
+    let mut edge_lengths = HashMap::new();
+    let angle_constraints = HashMap::new();
+
+    let f = g.add_polygon(2 * n);
+    let ext = wrap_exterior(&mut g, f);
+
+    let mut or = OrbitReprs::new();
+    or.ensure_all(&g, Alphas::EDGE);
+
+    let mut d = f;
+    for i in 0..(2*n) {
+      let length = if i + 1 <= 2*n - 1 {
+        i + 1
+      } else {
+        n
+      } as i32;
+      edge_lengths.insert(or[(Alphas::EDGE, d)], length);
+      
+      d = g.al(d, [1, 0]);
+    }
+
+    Problem::with_exterior(g, edge_lengths, angle_constraints, ext).unwrap()
+  }
 }
 
 #[cfg(test)]
@@ -484,6 +610,34 @@ mod tests {
   pub fn fold_kite() {
     let problem = examples::kite();
     let constraints = problem.constraint_graph().unwrap();
-    dbg!(problem, constraints);
+  }
+
+  #[test]
+  pub fn fold_trapezoid() {
+    let problem = examples::trapezoid();
+    let constraints = problem.constraint_graph().unwrap();
+  }
+
+  #[test]
+  pub fn fold_grid() {
+    let problem = examples::square_grid(4);
+    let constraints = problem.constraint_graph().unwrap();
+  }
+
+  #[test]
+  pub fn fold_big_kite() {
+    let problem = examples::big_kite(4);
+    let constraints = problem.constraint_graph().unwrap();
+  }
+
+  #[test]
+  pub fn fold_regular() {
+    let problem = examples::regular(4);
+    let constraints = problem.constraint_graph().unwrap();
+  }
+  #[test]
+  pub fn fold_big_arc() {
+    let problem = examples::big_arc(4);
+    let constraints = problem.constraint_graph().unwrap();
   }
 }
