@@ -220,7 +220,6 @@ impl Problem {
       };
       if n_S % 2 == 0 {
         // |S| is even
-        dbg!(n_S);
 
         let start_prev = tracking.split(start, end);
         // add new clause
@@ -233,7 +232,6 @@ impl Problem {
         let (_, length_a) = tracking[start_prev].data;
         let (_, length_b) = tracking[end].data;
         let new_length = length_a - length + length_b;
-        dbg!(length_a, length, length_b);
         tracking.mut_data(start_prev).1 = new_length;
 
         // make sure head remains valid
