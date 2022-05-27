@@ -186,6 +186,8 @@ impl Problem {
     constraints: &mut Constraints,
     exterior: bool,
   ) -> Result<(), Error> {
+    // XXX during this function we need to account for already-constrained angles
+
     let Constraints {
       cg,
       clause_sizes,
