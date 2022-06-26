@@ -7,6 +7,11 @@ use sauron::{
   prelude::*,
 };
 
+const GRID_STROKE_WIDTH: f64 = 0.05;
+const DOT_RADIUS: f64 = 0.1;
+const CROSS_SIZE: f64 = 0.12;
+const CROSS_STROKE_WIDTH: f64 = 0.05;
+
 pub enum Msg {
   FaceClick(Dart, f64, f64),
   SelectLayer(usize),
@@ -70,7 +75,7 @@ impl Puzzle {
           data: LayerData::Enum {
             spec: vec![
               (Marker::Dot, "black".to_string()),
-              (Marker::Dot, "red".to_string()),
+              (Marker::Cross, "red".to_string()),
             ],
             data: OrbitMap::new(Alphas::EDGE),
           },
@@ -185,17 +190,47 @@ impl Puzzle {
             match marker_type {
               Marker::Dot => {
                 let (center_x, center_y) = center(&self.g, &self.layout, dart, indices);
-                // todo abstract magic numbers
                 circle(
                   [
                     cx(center_x),
                     cy(center_y),
-                    r(0.1),
+                    r(DOT_RADIUS),
                     stroke("none"),
                     fill(color),
                     pointer_events("none"),
                   ],
                   [],
+                )
+              }
+              Marker::Cross => {
+                let (center_x, center_y) = center(&self.g, &self.layout, dart, indices);
+                g(
+                  [
+                    stroke(color),
+                    stroke_width(CROSS_STROKE_WIDTH),
+                    fill("none"),
+                    pointer_events("none"),
+                  ],
+                  [
+                    line(
+                      [
+                        x1(center_x - CROSS_SIZE),
+                        y1(center_y - CROSS_SIZE),
+                        x2(center_x + CROSS_SIZE),
+                        y2(center_y + CROSS_SIZE),
+                      ],
+                      [],
+                    ),
+                    line(
+                      [
+                        x1(center_x - CROSS_SIZE),
+                        y1(center_y + CROSS_SIZE),
+                        x2(center_x + CROSS_SIZE),
+                        y2(center_y - CROSS_SIZE),
+                      ],
+                      [],
+                    ),
+                  ],
                 )
               }
               _ => todo!(),
@@ -224,7 +259,7 @@ impl Puzzle {
         [
           points(&segments.join(" ")),
           stroke("gray"),
-          stroke_width("0.05"),
+          stroke_width(GRID_STROKE_WIDTH),
           fill("transparent"),
           on_mousedown(move |event: MouseEvent| {
             let coords = client_to_svg("#puzzle", event.client_x(), event.client_y());
