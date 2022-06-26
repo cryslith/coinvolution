@@ -29,6 +29,8 @@ pub enum LayerData {
   String {
     color: Color,
     data: OrbitMap<String>,
+    size: f64,
+    size_scaling: f64,
   },
   Enum {
     spec: Vec<(Marker, Color)>,
@@ -87,6 +89,8 @@ impl Puzzle {
           data: LayerData::String {
             color: "black".to_string(),
             data: OrbitMap::new(Alphas::FACE),
+            size: 1.0,
+            size_scaling: 1.0,
           },
           active_dart: None,
         },
@@ -145,13 +149,16 @@ impl Puzzle {
 
   fn view_layer<'a>(&'a self, layer: &'a Layer) -> Box<dyn Iterator<Item = Node<Msg>> + 'a> {
     match &layer.data {
-      LayerData::String { color, data } => {
+      LayerData::String {
+        color,
+        data,
+        size,
+        size_scaling,
+      } => {
         let indices = data.indices();
         Box::new(self.g.one_dart_per_orbit(indices).filter_map(move |dart| {
           let value = data.map().get(&dart);
           let (center_x, center_y) = center(&self.g, &self.layout, dart, indices);
-          let w = orbit_width(&self.g, &self.layout, dart, indices);
-
           value.map(|s| {
             svg::tags::text(
               [
@@ -160,9 +167,7 @@ impl Puzzle {
                 dominant_baseline("central"),
                 text_anchor("middle"),
                 fill(color),
-                lengthAdjust("spacingAndGlyphs"),
-                textLength(w * 2. / 3.),
-                font_size(w * 1.9 / (1f64 + s.len() as f64)),
+                font_size(size * (1.0 / (s.len() as f64).max(1.0)).powf(*size_scaling)),
                 pointer_events("none"),
               ],
               [text(s)],
