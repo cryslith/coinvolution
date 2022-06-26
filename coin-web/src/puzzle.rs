@@ -10,7 +10,7 @@ use sauron::{
 pub enum Msg {
   FaceClick(Dart, f64, f64),
   SelectLayer(usize),
-  KeyPressed(String),
+  KeyPressed(char),
   Backspace,
   None,
 }
@@ -282,20 +282,26 @@ impl Application<Msg> for Puzzle {
         log!("event: selected layer {}", i);
         self.active_layer = Some(i);
       }
-      Msg::KeyPressed(s) => {
-        log!("event: pressed {}", s);
+      Msg::KeyPressed(_) | Msg::Backspace => {
+        log!("event: key pressed");
         if let Some(i) = self.active_layer {
           let layer = &mut self.layers[i];
           if let LayerData::String { ref mut data, .. } = layer.data {
             if let Some(d) = layer.active_dart {
-              let x = data.map().get(&d).cloned().unwrap_or_else(String::new);
-              data.insert(&self.g, d, x + &s);
+              let mut x = data.map().get(&d).cloned().unwrap_or_else(String::new);
+              match msg {
+                Msg::KeyPressed(s) => x.push(s),
+                Msg::Backspace => {
+                  if !x.is_empty() {
+                    x.truncate(x.len() - 1);
+                  }
+                }
+                _ => unreachable!(),
+              }
+              data.insert(&self.g, d, x);
             }
           }
         }
-      }
-      Msg::Backspace => {
-        log!("event: backspace");
       }
       Msg::None => {}
     }
@@ -333,7 +339,7 @@ impl Application<Msg> for Puzzle {
                   _ if key.len() == 1 => {
                     event.prevent_default();
                     event.stop_propagation();
-                    Msg::KeyPressed(key)
+                    Msg::KeyPressed(key.chars().next().unwrap())
                   }
                   _ => Msg::None,
                 }
@@ -360,15 +366,4 @@ fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: Dart, a: Alphas) -> (f64, 
     },
   );
   (x / n, y / n)
-}
-
-fn orbit_width(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: Dart, a: Alphas) -> f64 {
-  let (min, max) = g.one_dart_per_incident_orbit(d, Alphas::VERTEX, a).fold(
-    (f64::INFINITY, f64::NEG_INFINITY),
-    |(a, b), d| {
-      let &(x, _) = layout.map().get(&d).expect("missing vertex in layout");
-      (a.min(x), b.max(x))
-    },
-  );
-  max - min
 }
