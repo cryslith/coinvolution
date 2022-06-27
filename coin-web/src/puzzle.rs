@@ -11,6 +11,7 @@ const GRID_STROKE_WIDTH: f64 = 0.05;
 const DOT_RADIUS: f64 = 0.1;
 const CROSS_SIZE: f64 = 0.12;
 const CROSS_STROKE_WIDTH: f64 = 0.05;
+const FILL_STROKE_WIDTH: f64 = 0.02;
 
 pub enum Msg {
   FaceClick(Dart, f64, f64),
@@ -24,6 +25,7 @@ pub enum Marker {
   Dot,
   Cross,
   Fill,
+  Line,
   CrossLine,
   Arrow,
 }
@@ -76,6 +78,7 @@ impl Puzzle {
             spec: vec![
               (Marker::Dot, "black".to_string()),
               (Marker::Cross, "red".to_string()),
+              (Marker::Fill, "blue".to_string()),
             ],
             data: OrbitMap::new(Alphas::EDGE),
           },
@@ -84,8 +87,24 @@ impl Puzzle {
         Layer {
           name: "vertex".to_string(),
           data: LayerData::Enum {
-            spec: vec![(Marker::Dot, "blue".to_string())],
+            spec: vec![
+              (Marker::Dot, "black".to_string()),
+              (Marker::Cross, "red".to_string()),
+              (Marker::Fill, "blue".to_string()),
+            ],
             data: OrbitMap::new(Alphas::VERTEX),
+          },
+          active_dart: None,
+        },
+        Layer {
+          name: "face".to_string(),
+          data: LayerData::Enum {
+            spec: vec![
+              (Marker::Dot, "black".to_string()),
+              (Marker::Cross, "red".to_string()),
+              (Marker::Fill, "blue".to_string()),
+            ],
+            data: OrbitMap::new(Alphas::FACE),
           },
           active_dart: None,
         },
@@ -233,6 +252,21 @@ impl Puzzle {
                   ],
                 )
               }
+              Marker::Fill => g(
+                [stroke(color), stroke_width(FILL_STROKE_WIDTH), fill(color), pointer_events("none")],
+                self.g.orbit(dart, indices).map(|tri| {
+                  let vertex = self.layout.map().get(&tri).unwrap();
+                  let edge = center(&self.g, &self.layout, tri, Alphas::EDGE);
+                  let face = center(&self.g, &self.layout, tri, Alphas::FACE);
+                  polygon(
+                    [points(format!(
+                      "{},{} {},{} {},{}",
+                      vertex.0, vertex.1, edge.0, edge.1, face.0, face.1,
+                    ))],
+                    [],
+                  )
+                }),
+              ),
               _ => todo!(),
             }
           })
