@@ -10,12 +10,10 @@
 ## Graph display
 
 Todo:
-- support strings in all basic cell types
-- Fix bug with selecting lines on thin triangles
-- more marker types
-- display selected cell
+- display selected cell for text
 - deselect cell
 - test on more grids
+  - Fix bug with selecting lines on thin triangles
 - layer options (marker types, size/color config)
 - zoom and pan
 - graph editor

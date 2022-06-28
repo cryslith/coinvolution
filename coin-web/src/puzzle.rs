@@ -6,6 +6,8 @@ use sauron::{
   html::attributes::{name, style, tabindex},
   prelude::*,
 };
+use wasm_bindgen::JsCast;
+use web_sys::WheelEvent;
 
 const GRID_STROKE_WIDTH: f64 = 0.05;
 const DOT_RADIUS: f64 = 0.1;
@@ -13,12 +15,14 @@ const CROSS_SIZE: f64 = 0.12;
 const CROSS_STROKE_WIDTH: f64 = 0.05;
 const FILL_STROKE_WIDTH: f64 = 0.02;
 const LINE_STROKE_WIDTH: f64 = 0.07;
+const ZOOM_BASE: f64 = 1.2;
 
 pub enum Msg {
   FaceClick(Dart, f64, f64),
   SelectLayer(usize),
   KeyPressed(char),
   Backspace,
+  Zoom(f64, f64, f64),
   None,
 }
 
@@ -58,6 +62,7 @@ pub struct Puzzle {
   layout: OrbitMap<(f64, f64)>, // positions of every vertex
   layers: Vec<Layer>,
   active_layer: Option<usize>,
+  viewbox: [f64; 4],
 }
 
 impl Puzzle {
@@ -71,6 +76,7 @@ impl Puzzle {
       let b = b as f64;
       layout.insert(&g, v, (a * 3f64.sqrt() / 4., a / 4. + b / 2.));
     }
+    let viewbox = [-2., -2., 14., 14.];
 
     Puzzle {
       g,
@@ -141,6 +147,7 @@ impl Puzzle {
         },
       ],
       active_layer: None,
+      viewbox,
     }
   }
 
@@ -348,6 +355,9 @@ impl Puzzle {
           stroke_width(GRID_STROKE_WIDTH),
           fill("transparent"),
           on_mousedown(move |event: MouseEvent| {
+            if event.button() != 0 {
+              return Msg::None;
+            }
             let coords = client_to_svg("#puzzle", event.client_x(), event.client_y());
             let x = coords.x();
             let y = coords.y();
@@ -424,6 +434,16 @@ impl Application<Msg> for Puzzle {
           }
         }
       }
+      Msg::Zoom(magnitude, x, y) => {
+        log!("event: zoom");
+        let r = ZOOM_BASE.powf(magnitude);
+        let [bx, by, bw, bh] = self.viewbox;
+        let nx = bx + (x - bx) * (1. - r);
+        let ny = by + (y - by) * (1. - r);
+        let nw = bw * r;
+        let nh = bh * r;
+        self.viewbox = [nx, ny, nw, nh];
+      }
       Msg::None => {}
     }
     Cmd::none()
@@ -443,9 +463,20 @@ impl Application<Msg> for Puzzle {
           svg(
             [
               id("puzzle"),
-              viewBox([-2, -2, 14, 14]),
+              viewBox(self.viewbox),
               tabindex(0),
               style("outline", "none"),
+              on_wheel(|event: MouseEvent| {
+                let event: WheelEvent = if let Ok(e) = event.dyn_into() {
+                  e
+                } else {
+                  return Msg::None;
+                };
+                let coords = client_to_svg("#puzzle", event.client_x(), event.client_y());
+                let x = coords.x();
+                let y = coords.y();
+                Msg::Zoom(event.delta_y(), x, y)
+              }),
               on_keydown(|event: KeyboardEvent| {
                 if event.alt_key() || event.ctrl_key() || event.meta_key() {
                   return Msg::None;
