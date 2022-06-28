@@ -117,6 +117,17 @@ impl Puzzle {
           active_dart: None,
         },
         Layer {
+          name: "slitherlink".to_string(),
+          data: LayerData::Enum {
+            spec: vec![
+              (Marker::LineVE, "black".to_string()),
+              (Marker::Cross, "red".to_string()),
+            ],
+            data: OrbitMap::new(Alphas::EDGE),
+          },
+          active_dart: None,
+        },
+        Layer {
           name: "text".to_string(),
           data: LayerData::String {
             color: "black".to_string(),
@@ -291,7 +302,14 @@ impl Puzzle {
     }
   }
 
-  fn draw_line(&self, indices: Alphas, from: Alphas, to: Alphas, dart: Dart, color: &Color) -> Node<Msg> {
+  fn draw_line(
+    &self,
+    indices: Alphas,
+    from: Alphas,
+    to: Alphas,
+    dart: Dart,
+    color: &Color,
+  ) -> Node<Msg> {
     g(
       [
         stroke(color),

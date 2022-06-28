@@ -11,13 +11,15 @@
 
 Todo:
 - support strings in all basic cell types
-- backspace
 - Fix bug with selecting lines on thin triangles
 - more marker types
 - display selected cell
 - deselect cell
-- convert to orbit representatives
 - test on more grids
+- layer options (marker types, size/color config)
+- zoom and pan
+- graph editor
+- solver integration
 
 
 Goals:
