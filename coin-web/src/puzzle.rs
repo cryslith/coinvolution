@@ -1,6 +1,6 @@
 use crate::svg::client_to_svg;
 
-use gmap::{grids::square, Alphas, Dart, GMap, OrbitMap};
+use gmap::{grids::hex, Alphas, Dart, GMap, OrbitMap};
 
 use sauron::{
   html::attributes::{name, style, tabindex},
@@ -62,12 +62,14 @@ pub struct Puzzle {
 
 impl Puzzle {
   pub fn new() -> Self {
-    let (g, squares) = square::new(10, 10);
+    let (g, rows) = hex::new(10, 10);
+    let coords = hex::vertex_coords(&g, &rows);
     let mut layout = OrbitMap::new(Alphas::VERTEX);
-    for (i, row) in square::vertex_grid(&g, &squares).iter().enumerate() {
-      for (j, &v) in row.iter().enumerate() {
-        layout.insert(&g, v, (j as f64, i as f64))
-      }
+    for v in g.one_dart_per_cell(0) {
+      let (a, b) = coords.map()[&v];
+      let a = a as f64;
+      let b = b as f64;
+      layout.insert(&g, v, (a * 3f64.sqrt() / 4., a / 4. + b / 2.));
     }
 
     Puzzle {

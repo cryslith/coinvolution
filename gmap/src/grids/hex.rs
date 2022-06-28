@@ -1,4 +1,4 @@
-use crate::{Dart, GMap};
+use crate::{Alphas, Dart, GMap, OrbitMap};
 
 use itertools::Itertools;
 
@@ -26,4 +26,27 @@ pub fn new(n: usize, m: usize) -> (GMap, Vec<Vec<Dart>>) {
   }
 
   (g, rows)
+}
+
+/// Returns coordinates along basis vectors (a, b) where a + b = (0, 1),
+/// 2a - b = (1, 0)
+/// That is, a and b are 15 degrees rotated from the r- and q- axes,
+/// and their length is the distance from the center of a hex to a vertex
+pub fn vertex_coords(g: &GMap, rows: &[Vec<Dart>]) -> OrbitMap<(isize, isize)> {
+  let mut coords = OrbitMap::new(Alphas::VERTEX);
+  for (r, row) in rows.iter().enumerate() {
+    for (q, &h) in row.iter().enumerate() {
+      let r = r as isize;
+      let q = q as isize;
+      let a = r + 2 * q;
+      let b = r - q;
+      coords.insert(&g, h, (a, b - 1));
+      coords.insert(&g, g.al(h, [0]), (a + 1, b - 1));
+      coords.insert(&g, g.al(h, [0, 1, 0]), (a + 1, b));
+      coords.insert(&g, g.al(h, [0, 1, 0, 1, 0]), (a, b + 1));
+      coords.insert(&g, g.al(h, [0, 1, 0, 1, 0, 1, 0]), (a - 1, b + 1));
+      coords.insert(&g, g.al(h, [0, 1, 0, 1, 0, 1, 0, 1, 0]), (a - 1, b));
+    }
+  }
+  coords
 }
