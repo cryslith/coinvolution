@@ -23,6 +23,8 @@ pub enum GMapError {
   AlreadyFree,
   #[error("Dimensions larger than {} are not supported", MAX_DIMENSION)]
   DimensionTooLarge,
+  #[error("Dart is deleted")]
+  Deleted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -65,6 +67,7 @@ pub struct GMap {
   dimension: usize,
   /// 2-dimensional vector indexed as dart * (dimension + 1) + alpha_index
   alpha: Vec<Dart>,
+  deleted: Vec<bool>,
 }
 
 impl Index<(Dart, usize)> for GMap {
@@ -85,7 +88,13 @@ impl GMap {
     if dimension > MAX_DIMENSION {
       return Err(GMapError::DimensionTooLarge);
     }
-    let g = GMap { dimension, alpha };
+    let ndarts = alpha.len() / (dimension + 1);
+    let deleted = vec![false; ndarts];
+    let g = GMap {
+      dimension,
+      alpha,
+      deleted,
+    };
     g.check_valid()?;
     Ok(g)
   }
@@ -98,6 +107,12 @@ impl GMap {
       )));
     }
     let n = self.ndarts();
+    if self.deleted.len() != n {
+      return Err(GMapError::InvalidAlpha(format!(
+        "Wrong size of deleted {}",
+        self.deleted.len()
+      )));
+    }
     for d in 0..n {
       for i in 0..=self.dimension {
         if self[(Dart(d), i)].0 >= n {
@@ -115,6 +130,12 @@ impl GMap {
           return Err(GMapError::InvalidAlpha(format!(
             "alpha_{} is not an involution",
             i
+          )));
+        }
+        if !self.deleted[d] && self.deleted[self[(Dart(d), i)].0] {
+          return Err(GMapError::InvalidAlpha(format!(
+            "pointer from undeleted dart {} to deleted dart",
+            d
           )));
         }
       }
@@ -141,7 +162,7 @@ impl GMap {
     self.dimension
   }
 
-  /// Number of darts
+  /// Number of darts (including deleted)
   #[inline(always)]
   pub fn ndarts(&self) -> usize {
     self.alpha.len() / (self.dimension + 1)
@@ -187,7 +208,20 @@ impl GMap {
   pub fn add_dart(&mut self) -> Dart {
     let d = Dart(self.ndarts());
     self.alpha.resize(self.alpha.len() + self.dimension + 1, d);
+    self.deleted.push(false);
     d
+  }
+
+  pub fn delete(&mut self, d: Dart) {
+    // all reachable darts
+    let to_delete: Vec<Dart> = self.orbit(d, Alphas(!0)).collect();
+    for d1 in to_delete {
+      self.deleted[d1.0] = true;
+    }
+  }
+
+  pub fn is_deleted(&self, d: Dart) -> bool {
+    self.deleted[d.0]
   }
 
   pub fn is_free(&self, d: Dart, i: usize) -> bool {
@@ -197,6 +231,9 @@ impl GMap {
   fn link(&mut self, i: usize, d0: Dart, d1: Dart) -> Result<(), GMapError> {
     if !self.is_free(d0, i) || !self.is_free(d1, i) {
       return Err(GMapError::NotFree);
+    }
+    if self.is_deleted(d0) || self.is_deleted(d1) {
+      return Err(GMapError::Deleted);
     }
     *self.al1(d0, i) = d1;
     *self.al1(d1, i) = d0;
@@ -419,7 +456,7 @@ impl GMap {
   /// one dart per a-orbit.
   /// returned darts are lowest-numbered in their a-orbit.
   pub fn one_dart_per_orbit<'a>(&'a self, a: Alphas) -> impl Iterator<Item = Dart> + 'a {
-    self.unique_by_orbit((0..self.ndarts()).map(Dart), a)
+    self.unique_by_orbit((0..self.ndarts()).map(Dart).filter(|&d| !self.is_deleted(d)), a)
   }
 
   /// one dart per i-cell.
