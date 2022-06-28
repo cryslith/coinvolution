@@ -12,6 +12,7 @@ const DOT_RADIUS: f64 = 0.1;
 const CROSS_SIZE: f64 = 0.12;
 const CROSS_STROKE_WIDTH: f64 = 0.05;
 const FILL_STROKE_WIDTH: f64 = 0.02;
+const LINE_STROKE_WIDTH: f64 = 0.07;
 
 pub enum Msg {
   FaceClick(Dart, f64, f64),
@@ -25,8 +26,9 @@ pub enum Marker {
   Dot,
   Cross,
   Fill,
-  Line,
-  CrossLine,
+  LineVE,
+  LineEF,
+  LineVF,
   Arrow,
 }
 
@@ -73,26 +75,30 @@ impl Puzzle {
       layout,
       layers: vec![
         Layer {
-          name: "edge".to_string(),
-          data: LayerData::Enum {
-            spec: vec![
-              (Marker::Dot, "black".to_string()),
-              (Marker::Cross, "red".to_string()),
-              (Marker::Fill, "blue".to_string()),
-            ],
-            data: OrbitMap::new(Alphas::EDGE),
-          },
-          active_dart: None,
-        },
-        Layer {
           name: "vertex".to_string(),
           data: LayerData::Enum {
             spec: vec![
               (Marker::Dot, "black".to_string()),
               (Marker::Cross, "red".to_string()),
-              (Marker::Fill, "blue".to_string()),
+              (Marker::Fill, "green".to_string()),
+              (Marker::LineVE, "blue".to_string()),
+              (Marker::LineVF, "magenta".to_string()),
             ],
             data: OrbitMap::new(Alphas::VERTEX),
+          },
+          active_dart: None,
+        },
+        Layer {
+          name: "edge".to_string(),
+          data: LayerData::Enum {
+            spec: vec![
+              (Marker::Dot, "black".to_string()),
+              (Marker::Cross, "red".to_string()),
+              (Marker::Fill, "green".to_string()),
+              (Marker::LineVE, "blue".to_string()),
+              (Marker::LineEF, "cyan".to_string()),
+            ],
+            data: OrbitMap::new(Alphas::EDGE),
           },
           active_dart: None,
         },
@@ -102,7 +108,9 @@ impl Puzzle {
             spec: vec![
               (Marker::Dot, "black".to_string()),
               (Marker::Cross, "red".to_string()),
-              (Marker::Fill, "blue".to_string()),
+              (Marker::Fill, "green".to_string()),
+              (Marker::LineEF, "cyan".to_string()),
+              (Marker::LineVF, "magenta".to_string()),
             ],
             data: OrbitMap::new(Alphas::FACE),
           },
@@ -253,7 +261,12 @@ impl Puzzle {
                 )
               }
               Marker::Fill => g(
-                [stroke(color), stroke_width(FILL_STROKE_WIDTH), fill(color), pointer_events("none")],
+                [
+                  stroke(color),
+                  stroke_width(FILL_STROKE_WIDTH),
+                  fill(color),
+                  pointer_events("none"),
+                ],
                 self.g.orbit(dart, indices).map(|tri| {
                   let vertex = self.layout.map().get(&tri).unwrap();
                   let edge = center(&self.g, &self.layout, tri, Alphas::EDGE);
@@ -267,12 +280,31 @@ impl Puzzle {
                   )
                 }),
               ),
+              Marker::LineVE => self.draw_line(indices, Alphas::VERTEX, Alphas::EDGE, dart, color),
+              Marker::LineEF => self.draw_line(indices, Alphas::EDGE, Alphas::FACE, dart, color),
+              Marker::LineVF => self.draw_line(indices, Alphas::VERTEX, Alphas::FACE, dart, color),
               _ => todo!(),
             }
           })
         }))
       }
     }
+  }
+
+  fn draw_line(&self, indices: Alphas, from: Alphas, to: Alphas, dart: Dart, color: &Color) -> Node<Msg> {
+    g(
+      [
+        stroke(color),
+        stroke_width(LINE_STROKE_WIDTH),
+        fill("none"),
+        pointer_events("none"),
+      ],
+      self.g.orbit(dart, indices).map(|tri| {
+        let start = center(&self.g, &self.layout, tri, from);
+        let end = center(&self.g, &self.layout, tri, to);
+        line([x1(start.0), y1(start.1), x2(end.0), y2(end.1)], [])
+      }),
+    )
   }
 
   fn view_face_clickers(&self) -> impl Iterator<Item = Node<Msg>> + '_ {
@@ -427,6 +459,10 @@ impl Application<Msg> for Puzzle {
 
 /// center of the a-orbit at d
 fn center(g: &GMap, layout: &OrbitMap<(f64, f64)>, d: Dart, a: Alphas) -> (f64, f64) {
+  if !a.has(0) {
+    return *layout.map().get(&d).expect("missing vertex in layout");
+  }
+
   let ((x, y), n) = g.one_dart_per_incident_orbit(d, Alphas::VERTEX, a).fold(
     ((0f64, 0f64), 0f64),
     |((x, y), n), d| {
