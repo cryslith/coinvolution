@@ -23,6 +23,7 @@ pub enum Msg {
   KeyPressed(char),
   Backspace,
   Zoom(f64, f64, f64),
+  ChangeName(usize, String),
   None,
 }
 
@@ -393,6 +394,34 @@ impl Puzzle {
         })),
     )
   }
+
+  fn view_layer_options(&self) -> Option<Node<Msg>> {
+    let layer_index = self.active_layer?;
+    let active_layer = &self.layers[layer_index];
+    Some(fieldset(
+      [],
+      [
+        legend([], [text("Layer Options")]),
+        label(
+          [],
+          [
+            text("Name "),
+            input(
+              [
+                r#type("text"),
+                key(layer_index),
+                on_input(move |event: InputEvent| {
+                  Msg::ChangeName(layer_index, event.value.to_string())
+                }),
+                value(&active_layer.name),
+              ],
+              [],
+            ),
+          ],
+        ),
+      ],
+    ))
+  }
 }
 
 impl Application<Msg> for Puzzle {
@@ -443,6 +472,10 @@ impl Application<Msg> for Puzzle {
         let nw = bw * r;
         let nh = bh * r;
         self.viewbox = [nx, ny, nw, nh];
+      }
+      Msg::ChangeName(layer_index, name) => {
+        log!("event: change name {}", layer_index);
+        self.layers[layer_index].name = name;
       }
       Msg::None => {}
     }
@@ -502,7 +535,9 @@ impl Application<Msg> for Puzzle {
               .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
           ),
           self.view_layer_selector(),
-        ],
+        ]
+        .into_iter()
+        .chain(self.view_layer_options()),
       )],
     )
   }
