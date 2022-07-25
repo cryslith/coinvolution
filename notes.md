@@ -10,14 +10,14 @@
 ## Graph display
 
 Todo:
-- display selected cell for text
-- deselect cell
+- solver integration
+- graph editor
 - test on more grids
   - Fix bug with selecting lines on thin triangles
 - layer options (marker types, size/color config)
 - zoom and pan
-- graph editor
-- solver integration
+- display selected cell for text
+- deselect cell
 
 
 Goals:
