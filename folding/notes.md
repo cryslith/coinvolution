@@ -10,6 +10,7 @@
   * Use bounding boxes to eliminate far pairs
     * Bounding boxes should have minimum dimensions so that we get parallel close-to-planar pairs
     * Also use close pairs of faces to determine close pairs of creases and crease-face pairs
+  * Also eliminate pairs joined by creases since these will be handled separately
   * Determine if faces are parallel
     * Check if they overlap in planar projection after slightly shrunk
     * Compute and save intersection for later

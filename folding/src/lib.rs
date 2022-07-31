@@ -4,7 +4,7 @@ mod format;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::f64::consts::PI;
 
-use gmap::{Dart, GMap, OrbitMap};
+use gmap::{Alphas, Dart, GMap, OrbitMap};
 use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion, Vector3};
 use thiserror::Error;
 
@@ -13,6 +13,8 @@ const ISO_LENGTH_EPSILON: f64 = 0.001;
 
 const COPLANAR_ANGLE_EPSILON: f64 = 0.001;
 const PLANE_DISTANCE_EPSILON: f64 = 0.001;
+
+const FACE_SHRINK_EPSILON: f64 = 0.001;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -405,6 +407,39 @@ impl FoldedState {
     Point3::from(p1.coords.lerp(&p0.coords, x))
   }
 
+  /// Shrink each face by an epsilon value.  Maps each angle to a location
+  fn shrunk_faces_coords(&self, cp: &CreasePattern) -> OrbitMap<Point3<f64>> {
+    let g = &cp.g;
+    let mut shrunk_coords = OrbitMap::new(Alphas::ANGLE);
+    for face in g.one_dart_per_cell(2) {
+      let center = {
+        let (p, n) = g
+          .one_dart_per_incident_orbit(face, Alphas::VERTEX, Alphas::FACE)
+          .fold((Vector3::zeros(), 0f64), |(p, n), d| {
+            let p1 = self
+              .folded_coords
+              .map()
+              .get(&d)
+              .expect("missing vertex in layout")
+              .coords;
+            (p + p1, n + 1f64)
+          });
+        p / n
+      };
+      for d in g.one_dart_per_incident_orbit(face, Alphas::VERTEX, Alphas::FACE) {
+        let p_old = self
+          .folded_coords
+          .map()
+          .get(&d)
+          .expect("missing vertex in layout")
+          .coords;
+        let p_new = Point3::from(p_old + (center - p_old).normalize() * FACE_SHRINK_EPSILON);
+        shrunk_coords.insert(&g, d, p_new);
+      }
+    }
+    shrunk_coords
+  }
+
   fn check_polygon_intersections(&self, cp: &CreasePattern) -> Result<(), Error> {
     let g = &cp.g;
 
@@ -444,10 +479,10 @@ impl FoldedState {
             self.is_face_in_plane(cp, face1, n2, p2) && self.is_face_in_plane(cp, face2, n1, p1);
           if !coplanar {
             continue;
-          } else {
-            // track coplanarity in a union-find
-            todo!("coplanar");
           }
+
+          // track intersections of coplanar faces
+          todo!("coplanar");
         } else {
           // check for intersections
           todo!("nonparallel");
