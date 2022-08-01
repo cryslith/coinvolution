@@ -385,8 +385,9 @@ impl FoldedState {
     let d0 = normal.dot(&(p0 - plane_point));
     let d1 = normal.dot(&(p1 - plane_point));
     let x = d1 / (d1 - d0);
-    if x.is_nan() {
-      panic!("edge parallel to plane");
+    if x.is_nan() || !(0 <= x <= 1) {
+      // should never happen because (d0, d1) should have opposite signs
+      panic!("edge does not cross plane");
     }
     Point3::from(p1.coords.lerp(&p0.coords, x))
   }
