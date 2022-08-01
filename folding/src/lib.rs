@@ -35,6 +35,8 @@ pub enum Error {
   FoldBadFace(usize),
   #[error("Folding found distinct isometries for face dart {0}")]
   DistinctIsometries(Dart),
+  #[error("Face darts {0} and {1} intersect in folded state")]
+  FaceIntersection(Dart, Dart),
 }
 
 pub struct CreasePattern {
@@ -279,6 +281,7 @@ impl FoldedState {
 
   fn check_polygon_intersections(&self, cp: &CreasePattern) -> Result<(), Error> {
     let g = &cp.g;
+    let shrunk_coords = intersection::shrunk_faces_coords(&cp.g, &self.folded_coords);
 
     // loop over all pairs of faces
     let faces: Vec<Dart> = g.one_dart_per_cell(2).collect();
@@ -321,8 +324,10 @@ impl FoldedState {
           // track intersections of coplanar faces
           todo!("coplanar");
         } else {
-          // check for intersections
-          todo!("nonparallel");
+          // faces are nonparallel; check for intersections
+          if intersection::do_faces_intersect(&cp.g, &shrunk_coords, face1, n1, face2, n2) {
+            return Err(Error::FaceIntersection(face1, face2));
+          }
         }
       }
     }

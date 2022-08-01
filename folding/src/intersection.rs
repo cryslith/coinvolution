@@ -4,7 +4,10 @@ use gmap::{Alphas, Dart, GMap, OrbitMap};
 use na::{Point3, Vector3};
 
 /// Shrink each face by an epsilon value.  Maps each angle to a location.
-fn shrunk_faces_coords(g: &GMap, coords: &OrbitMap<Point3<f64>>) -> OrbitMap<Point3<f64>> {
+pub(crate) fn shrunk_faces_coords(
+  g: &GMap,
+  coords: &OrbitMap<Point3<f64>>,
+) -> OrbitMap<Point3<f64>> {
   let mut shrunk_coords = OrbitMap::new(Alphas::ANGLE);
   for face in g.one_dart_per_cell(2) {
     let center = {
@@ -130,4 +133,44 @@ fn edge_crossing_point(
     panic!("edge does not cross plane");
   }
   Point3::from(p1.coords.lerp(&p0.coords, x))
+}
+
+/// Given nonparallel faces (and normal vectors), do they intersect?
+pub(crate) fn do_faces_intersect(
+  g: &GMap,
+  coords: &OrbitMap<Point3<f64>>,
+  face1: Dart,
+  normal1: Vector3<f64>,
+  face2: Dart,
+  normal2: Vector3<f64>,
+) -> bool {
+  let p1 = coords.map()[&face1];
+  let p2 = coords.map()[&face2];
+  let (ea1, eb1) = if let Some(crossings) = face_plane_crossing(g, coords, face1, normal2, p2) {
+    crossings
+  } else {
+    return false;
+  };
+  let (ea2, eb2) = if let Some(crossings) = face_plane_crossing(g, coords, face2, normal1, p1) {
+    crossings
+  } else {
+    return false;
+  };
+  let pa1 = edge_crossing_point(g, coords, ea1, normal2, p2);
+  let pb1 = edge_crossing_point(g, coords, eb1, normal2, p2);
+  let pa2 = edge_crossing_point(g, coords, ea2, normal1, p1);
+  let pb2 = edge_crossing_point(g, coords, eb2, normal1, p1);
+
+  let proj = normal1.cross(&normal2);
+  let a1 = proj.dot(&pa1.coords);
+  let a2 = proj.dot(&pa2.coords);
+  let b1 = proj.dot(&pb1.coords);
+  let b2 = proj.dot(&pb2.coords);
+
+  let c1 = a1 < b1;
+  let c2 = a1 < b2;
+  let c3 = a2 < b1;
+  let c4 = a2 < b2;
+
+  !(c1 == c2 && c2 == c3 && c3 == c4)
 }
