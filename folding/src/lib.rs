@@ -343,35 +343,23 @@ impl FoldedState {
     &self,
     cp: &CreasePattern,
     face: Dart,
+    coords: &OrbitMap<Point3<f64>>,
     normal: Vector3<f64>,
     plane_point: Point3<f64>,
   ) -> Option<(Dart, Dart)> {
     let mut pos = None;
     let mut neg = None;
-    let mut pos_epsilon = false;
-    let mut neg_epsilon = false;
 
-    let face = if cp.orientation[&face] {
-      face
-    } else {
-      cp.g.al(face, [0])
-    };
     let mut v = face;
-    let mut d = normal.dot(&(self.folded_coords.map()[&v] - plane_point));
+    let mut d = normal.dot(&(coords.map()[&v] - plane_point));
     loop {
       let v1 = cp.g.al(v, [0, 1]);
-      let d1 = normal.dot(&(self.folded_coords.map()[&v1] - plane_point));
+      let d1 = normal.dot(&(coords.map()[&v1] - plane_point));
       if d < 0.0 && d1 >= 0.0 {
         pos = Some(v);
       }
       if d >= 0.0 && d1 < 0.0 {
         neg = Some(v);
-      }
-      if d > PLANE_DISTANCE_EPSILON {
-        pos_epsilon = true;
-      }
-      if d < PLANE_DISTANCE_EPSILON {
-        neg_epsilon = true;
       }
 
       v = v1;
@@ -379,11 +367,6 @@ impl FoldedState {
       if v == face {
         break;
       }
-    }
-    // If the face never exceeded epsilon distance from the plane,
-    // no crossing occurred.
-    if !pos_epsilon || !neg_epsilon {
-      return None;
     }
     pos.zip(neg)
   }
@@ -393,11 +376,12 @@ impl FoldedState {
     &self,
     cp: &CreasePattern,
     edge: Dart,
+    coords: &OrbitMap<Point3<f64>>,
     normal: Vector3<f64>,
     plane_point: Point3<f64>,
   ) -> Point3<f64> {
-    let p0 = self.folded_coords.map()[&edge];
-    let p1 = self.folded_coords.map()[&cp.g.al(edge, [0])];
+    let p0 = coords.map()[&edge];
+    let p1 = coords.map()[&cp.g.al(edge, [0])];
     let d0 = normal.dot(&(p0 - plane_point));
     let d1 = normal.dot(&(p1 - plane_point));
     let x = d1 / (d1 - d0);
