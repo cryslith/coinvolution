@@ -3,7 +3,7 @@
 * Convexify faces [skip for now]
   * can use Hertel-Mehlhorn to get convex decomposition from triangulation
   * https://doc.cgal.org/Manual/3.2/doc_html/cgal_manual/Partition_2/Chapter_main.html
-* Orient faces
+* Orient faces [done]
   * Associate a single direct isometry to each face [done]
   * Fail if isometries are inconsistent [done]
 * For every pair of faces
@@ -11,11 +11,11 @@
     * Bounding boxes should have minimum dimensions so that we get parallel close-to-planar pairs
     * Also use close pairs of faces to determine close pairs of creases and crease-face pairs
   * Also eliminate pairs joined by creases since these will be handled separately
-  * Determine if faces are parallel
+  * Determine if faces are parallel [done]
     * Check if they overlap in planar projection after slightly shrunk
     * Compute and save intersection for later
-  * If not, check if slightly-shrunk versions of faces intersect
-    * Fail if they do
+  * If not, check if slightly-shrunk versions of faces intersect [done]
+    * Fail if they do [done]
 * Check face-crease incidences
   * Crease is close to plane, and shrunk projected crease intersects shrunk face
 * Check crease-crease incidences
