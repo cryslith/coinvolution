@@ -1,3 +1,5 @@
+#[cfg(feature = "serde")]
+pub mod format;
 pub mod grids;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -5,6 +7,8 @@ use std::fmt;
 use std::ops::Index;
 
 use itertools::{EitherOrBoth, Itertools};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -37,6 +41,7 @@ impl fmt::Display for Dart {
 }
 
 /// Bitfield where bit i is 1 if alpha_i should be included as a generator.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Alphas(pub u32);
 
@@ -456,7 +461,12 @@ impl GMap {
   /// one dart per a-orbit.
   /// returned darts are lowest-numbered in their a-orbit.
   pub fn one_dart_per_orbit<'a>(&'a self, a: Alphas) -> impl Iterator<Item = Dart> + 'a {
-    self.unique_by_orbit((0..self.ndarts()).map(Dart).filter(|&d| !self.is_deleted(d)), a)
+    self.unique_by_orbit(
+      (0..self.ndarts())
+        .map(Dart)
+        .filter(|&d| !self.is_deleted(d)),
+      a,
+    )
   }
 
   /// one dart per i-cell.
