@@ -173,6 +173,12 @@ impl GMap {
     self.alpha.len() / (self.dimension + 1)
   }
 
+  pub fn darts(&self) -> impl Iterator<Item = Dart> + '_ {
+    (0..self.ndarts())
+      .map(Dart)
+      .filter(|&d| !self.is_deleted(d))
+  }
+
   pub fn alpha(&self) -> &[Dart] {
     &self.alpha
   }
@@ -461,12 +467,7 @@ impl GMap {
   /// one dart per a-orbit.
   /// returned darts are lowest-numbered in their a-orbit.
   pub fn one_dart_per_orbit<'a>(&'a self, a: Alphas) -> impl Iterator<Item = Dart> + 'a {
-    self.unique_by_orbit(
-      (0..self.ndarts())
-        .map(Dart)
-        .filter(|&d| !self.is_deleted(d)),
-      a,
-    )
+    self.unique_by_orbit(self.darts(), a)
   }
 
   /// one dart per i-cell.
