@@ -14,12 +14,10 @@ pub struct GMap {
   alpha: HashMap<Dart, Vec<Dart>>,
 }
 
-pub enum Error {
-  MissingTranslation,
-}
-
 impl GMap {
-  fn to_gmap(&self) -> Result<(crate::GMap, Vec<Dart>), crate::GMapError> {
+  fn to_gmap(
+    &self,
+  ) -> Result<(crate::GMap, Vec<Dart>, HashMap<Dart, crate::Dart>), crate::GMapError> {
     let output_input: Vec<Dart> = self.alpha.keys().cloned().collect();
     let input_output: HashMap<Dart, crate::Dart> = output_input
       .iter()
@@ -30,7 +28,7 @@ impl GMap {
       .iter()
       .flat_map(|y| self.alpha[y].iter().map(|x| input_output[x]))
       .collect();
-    crate::GMap::from_alpha(self.dimension, alpha).map(|g| (g, output_input))
+    crate::GMap::from_alpha(self.dimension, alpha).map(|g| (g, output_input, input_output))
   }
 
   fn with_translation<F>(g: &crate::GMap, translation: F) -> Self
@@ -71,4 +69,34 @@ impl From<&crate::GMap> for GMap {
 pub struct OrbitMap<A> {
   map: HashMap<Dart, A>,
   indices: Alphas,
+}
+
+impl<A> OrbitMap<A> {
+  fn into_orbitmap<F>(self, translation: F) -> crate::OrbitMap<A>
+  where
+    F: Fn(Dart) -> crate::Dart,
+  {
+    let map = self.map.into_iter().map(|(k, v)| (translation(k), v));
+    crate::OrbitMap {
+      map,
+      indices: self.indices,
+    }
+  }
+
+  fn with_translation<F>(o: crate::OrbitMap<A>, translation: F) -> Self
+  where
+    F: Fn(crate::Dart) -> Dart,
+  {
+    let map = o.into_map().into_iter().map(|(k, v)| (translation(k), v));
+    Self {
+      map,
+      indices: o.indices,
+    }
+  }
+}
+
+impl<A> From<crate::OrbitMap<A>> for OrbitMap<A> {
+  fn from(o: crate::OrbitMap<A>) -> Self {
+    self.with_translation(o, |crate::Dart(i)| Dart(i))
+  }
 }
