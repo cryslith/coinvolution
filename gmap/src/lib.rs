@@ -62,6 +62,27 @@ impl Alphas {
   pub fn has(self, i: usize) -> bool {
     (self.0 >> i) & 1 == 1
   }
+
+  pub fn from_indices(i: impl IntoIterator<Item = usize>) -> Self {
+    Self(i.into_iter().fold(0, |x, y| x | (1 << y)))
+  }
+
+  pub fn to_indices(&self) -> impl Iterator<Item = usize> + '_ {
+    let mut i = 0;
+    let mut b = self.0;
+    std::iter::from_fn(move || {
+      if b == 0 {
+        return None;
+      }
+      while b & 1 == 0 {
+        b = b >> 1;
+        i += 1;
+      }
+      i += 1;
+      b = b >> 1;
+      return Some(i - 1);
+    })
+  }
 }
 
 /// Maximum dimension allowed.  The memory requirement goes up exponentially with dimension, so 31 should be more than enough.

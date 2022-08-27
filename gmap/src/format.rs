@@ -68,7 +68,7 @@ impl From<&crate::GMap> for GMap {
 #[derive(Serialize, Deserialize)]
 pub struct OrbitMap<A> {
   map: HashMap<Dart, A>,
-  indices: Alphas,
+  indices: Vec<usize>,
 }
 
 impl<A> OrbitMap<A> {
@@ -79,7 +79,7 @@ impl<A> OrbitMap<A> {
     let map = self.map.into_iter().map(|(k, v)| (translation(k), v));
     crate::OrbitMap {
       map,
-      indices: self.indices,
+      indices: Alphas::from_indices(self.indices),
     }
   }
 
@@ -90,7 +90,7 @@ impl<A> OrbitMap<A> {
     let map = o.into_map().into_iter().map(|(k, v)| (translation(k), v));
     Self {
       map,
-      indices: o.indices,
+      indices: o.indices.to_indices(),
     }
   }
 }
