@@ -1,0 +1,1 @@
+../../coin-web/pkg/coin_web.js
