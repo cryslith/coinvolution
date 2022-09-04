@@ -7,6 +7,8 @@
 from collections.abc import MutableMapping
 import itertools
 
+import jsonschema
+
 
 # An alpha-list a is a tuple (alphas, d) where 
 # alphas is a repeatable iterable of alpha indices.
@@ -252,9 +254,41 @@ class GMap:
         '''one dart per i-cell (in dim)'''
         return self.one_dart_per_orbit(cell_alphas(i, dim))
 
+    schema = {
+        'type': 'object',
+        'properties': {
+            'dimension': {
+                'type': 'integer',
+            },
+            'alpha': {
+                'type': 'object',
+                'additionalProperties': {
+                    'type': 'array',
+                    'items': {
+                        'type': 'integer',
+                    }
+                }
+            },
+        },
+        'required': ['indices', 'map'],
+    }
+
     def serialize(self):
-        darts = [[n.number for n in d.alpha] for d in self.darts]
-        return {'dimension': self.dimension, 'darts': darts}
+        darts = {d.number: [n.number for n in d.alpha] for d in self.darts}
+        output = {'dimension': self.dimension, 'alpha': darts}
+        jsonschema.validate(output, schema=self.schema)
+        return output
+
+    @classmethod
+    def deserialize(cls, x):
+        jsonschema.validate(x, schema=cls.schema)
+        dimension, alpha = x['dimension'], x['alpha']
+        numbered_darts = {Dart(dimension, n) for n in alpha}
+        for n, v in alpha.items():
+            numbered_darts[n].alpha = [numbered_darts[i] for i in v]
+        o = GMap(dimension, numbered_darts.values())
+        o.check_validity()
+        return o
 
 
 class Grid(GMap):
@@ -352,9 +386,35 @@ class OrbitDict(MutableMapping):
                 if d2 in self.darts:
                     self.darts[d1] = self.darts[d2]
 
+    schema = {
+        'type': 'object',
+        'properties': {
+            'indices': {
+                'type': 'array',
+                'items': {
+                    'type': 'integer',
+                }
+            },
+            'map': {
+                'type': 'object',
+            },
+        },
+        'required': ['indices', 'map'],
+    }
+
     def serialize(self):
         darts = {d.number: v for d, v in self.darts.items()}
-        return {'alpha-list': self.a, 'darts': darts}
+        output = {'indices': self.a, 'map': darts}
+        jsonschema.validate(output, schema=self.schema)
+        return output
+
+    @classmethod
+    def deserialize(cls, x):
+        jsonschema.validate(x, schema=cls.schema)
+        indices, darts = x['indices'], x['map']
+        s = cls(indices)
+        s.darts = {int(k): v for k, v in darts.items()}
+        return s
 
 
 def CellDict(i, dim=None):
