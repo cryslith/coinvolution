@@ -49,6 +49,7 @@ https://theory.stanford.edu/~nikolaj/programmingz3.html
 https://arxiv.org/abs/1708.01745
 https://sat-smt.codes/SAT_SMT_by_example.pdf
 https://rise4fun.com/z3/tutorial
+https://cs.stackexchange.com/questions/111410/sat-algorithm-for-determining-if-a-graph-is-disjoint
 
 ## Building & Testing
 

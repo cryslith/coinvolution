@@ -15,5 +15,9 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 pub fn main() {
   #[cfg(feature = "console_error_panic_hook")]
   console_error_panic_hook::set_once();
+}
+
+#[wasm_bindgen]
+pub fn run() {
   Program::mount_to_body(Puzzle::new());
 }

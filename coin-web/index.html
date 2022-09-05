@@ -6,7 +6,13 @@
     <script type="module">
       import init from './pkg/coin_web.js';
       (async function() {
-        await init().catch(console.error);
+        try {
+          const m = await init();
+          m.run();
+        }
+        catch (error) {
+          console.error(error);
+        }
       })();
     </script>
   </head>
