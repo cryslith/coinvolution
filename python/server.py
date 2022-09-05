@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 
-from quart import Quart
+from app import create_app
 
-app = Quart(__name__)
-
-@app.route('/')
-async def hello():
-    return 'hello'
+def solve(graph, layers, extra=None):
+    pass
 
 if __name__ == '__main__':
-    app.run()
+    create_app({'custom': solve}).run()

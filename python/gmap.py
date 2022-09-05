@@ -270,7 +270,7 @@ class GMap:
                 }
             },
         },
-        'required': ['indices', 'map'],
+        'required': ['dimension', 'alpha'],
     }
 
     def serialize(self):
