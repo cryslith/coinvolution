@@ -2,6 +2,7 @@ use crate::svg::client_to_svg;
 
 use gmap::{grids::hex, Alphas, Dart, GMap, OrbitMap};
 
+use itertools::chain;
 use sauron::{
   html::attributes::{name, style, tabindex},
   prelude::*,
@@ -24,6 +25,7 @@ pub enum Msg {
   Backspace,
   Zoom(f64, f64, f64),
   ChangeName(usize, String),
+  Solve,
   None,
 }
 
@@ -60,6 +62,7 @@ pub struct Layer {
 
 pub struct Puzzle {
   g: GMap,
+  solve_endpoint: Option<String>,
   layout: OrbitMap<(f64, f64)>, // positions of every vertex
   layers: Vec<Layer>,
   active_layer: Option<usize>,
@@ -67,7 +70,7 @@ pub struct Puzzle {
 }
 
 impl Puzzle {
-  pub fn new() -> Self {
+  pub fn new(solve_endpoint: Option<String>) -> Self {
     let (g, rows) = hex::new(10, 10);
     let coords = hex::vertex_coords(&g, &rows);
     let mut layout = OrbitMap::new(Alphas::VERTEX);
@@ -81,6 +84,7 @@ impl Puzzle {
 
     Puzzle {
       g,
+      solve_endpoint,
       layout,
       layers: vec![
         Layer {
@@ -422,6 +426,18 @@ impl Puzzle {
       ],
     ))
   }
+
+  fn view_solve_ui(&self) -> Option<Node<Msg>> {
+    self.solve_endpoint.as_ref().map(|solve_endpoint| {
+      div(
+        [],
+        [button(
+          [on_click(|event: MouseEvent| Msg::Solve)],
+          [text("Solve")],
+        )],
+      )
+    })
+  }
 }
 
 impl Application<Msg> for Puzzle {
@@ -477,6 +493,9 @@ impl Application<Msg> for Puzzle {
         log!("event: change name {}", layer_index);
         self.layers[layer_index].name = name;
       }
+      Msg::Solve => {
+        log!("event: solve");
+      }
       Msg::None => {}
     }
     Cmd::none()
@@ -487,57 +506,62 @@ impl Application<Msg> for Puzzle {
       [],
       [div(
         [
-          style("height", "95vh"),
           style("display", "flex"),
           style("align-items", "center"),
           style("flex-direction", "column"),
         ],
-        [
-          svg(
-            [
-              id("puzzle"),
-              viewBox(self.viewbox),
-              tabindex(0),
-              style("outline", "none"),
-              on_wheel(|event: MouseEvent| {
-                let event: WheelEvent = if let Ok(e) = event.dyn_into() {
-                  e
-                } else {
-                  return Msg::None;
-                };
-                let coords = client_to_svg("#puzzle", event.client_x(), event.client_y());
-                let x = coords.x();
-                let y = coords.y();
-                Msg::Zoom(event.delta_y(), x, y)
-              }),
-              on_keydown(|event: KeyboardEvent| {
-                if event.alt_key() || event.ctrl_key() || event.meta_key() {
-                  return Msg::None;
-                }
-                let key = event.key();
-                match &key[..] {
-                  "Backspace" => {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    Msg::Backspace
+        chain!(
+          self.view_solve_ui(),
+          [
+            svg(
+              [
+                id("puzzle"),
+                viewBox(self.viewbox),
+                tabindex(0),
+                style("border-style", "solid"),
+                style("width", "400px"),
+                style("height", "400px"),
+                on_wheel(|event: MouseEvent| {
+                  event.prevent_default();
+                  event.stop_propagation();
+                  let event: WheelEvent = if let Ok(e) = event.dyn_into() {
+                    e
+                  } else {
+                    return Msg::None;
+                  };
+                  let coords = client_to_svg("#puzzle", event.client_x(), event.client_y());
+                  let x = coords.x();
+                  let y = coords.y();
+                  Msg::Zoom(event.delta_y(), x, y)
+                }),
+                on_keydown(|event: KeyboardEvent| {
+                  if event.alt_key() || event.ctrl_key() || event.meta_key() {
+                    return Msg::None;
                   }
-                  _ if key.len() == 1 => {
-                    event.prevent_default();
-                    event.stop_propagation();
-                    Msg::KeyPressed(key.chars().next().unwrap())
+                  let key = event.key();
+                  match &key[..] {
+                    "Backspace" => {
+                      event.prevent_default();
+                      event.stop_propagation();
+                      Msg::Backspace
+                    }
+                    _ if key.len() == 1 => {
+                      event.prevent_default();
+                      event.stop_propagation();
+                      Msg::KeyPressed(key.chars().next().unwrap())
+                    }
+                    _ => Msg::None,
                   }
-                  _ => Msg::None,
-                }
-              }),
-            ],
-            self
-              .view_face_clickers()
-              .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
-          ),
-          self.view_layer_selector(),
-        ]
-        .into_iter()
-        .chain(self.view_layer_options()),
+                }),
+              ],
+              self
+                .view_face_clickers()
+                .chain(self.layers.iter().flat_map(|l| self.view_layer(l))),
+            ),
+            self.view_layer_selector(),
+          ],
+          self.view_layer_options(),
+        ),
       )],
     )
   }

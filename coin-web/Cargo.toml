@@ -8,6 +8,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+itertools = "0.10"
 gmap = { path = "../gmap" }
 wasm-bindgen = { version = "0.2.63", features = ["nightly"] }
 console_error_panic_hook = { version = "0.1.6", optional = true }

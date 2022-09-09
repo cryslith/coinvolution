@@ -18,6 +18,6 @@ pub fn main() {
 }
 
 #[wasm_bindgen]
-pub fn run() {
-  Program::mount_to_body(Puzzle::new());
+pub fn run(solve_endpoint: Option<String>) {
+  Program::mount_to_body(Puzzle::new(solve_endpoint));
 }
