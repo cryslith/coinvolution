@@ -1,13 +1,13 @@
 import gmap
 import jsonschema
-from quart import Quart, abort, render_template, request
+from quart import Quart, abort, render_template, request, url_for
 
 def create_app(solvers):
     app = Quart(__name__)
 
     @app.route('/')
     async def puzzle():
-        return await render_template('index.html', solve_endpoint='custom')
+        return await render_template('index.html', solve_endpoint=url_for('solve', solver='custom'))
 
     layer_schema = {
         'type': 'object',

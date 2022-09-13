@@ -54,8 +54,14 @@ pub enum LayerData {
   },
 }
 
+pub enum LayerSource {
+  User,
+  Solver,
+}
+
 pub struct Layer {
   name: String,
+  source: LayerSource,
   data: LayerData,
   active_dart: Option<Dart>,
 }
@@ -89,6 +95,7 @@ impl Puzzle {
       layers: vec![
         Layer {
           name: "vertex".to_string(),
+          source: LayerSource::User,
           data: LayerData::Enum {
             spec: vec![
               (Marker::Dot, "black".to_string()),
@@ -103,6 +110,7 @@ impl Puzzle {
         },
         Layer {
           name: "edge".to_string(),
+          source: LayerSource::User,
           data: LayerData::Enum {
             spec: vec![
               (Marker::Dot, "black".to_string()),
@@ -117,6 +125,7 @@ impl Puzzle {
         },
         Layer {
           name: "face".to_string(),
+          source: LayerSource::User,
           data: LayerData::Enum {
             spec: vec![
               (Marker::Dot, "black".to_string()),
@@ -131,6 +140,7 @@ impl Puzzle {
         },
         Layer {
           name: "slitherlink".to_string(),
+          source: LayerSource::User,
           data: LayerData::Enum {
             spec: vec![
               (Marker::LineVE, "black".to_string()),
@@ -142,6 +152,7 @@ impl Puzzle {
         },
         Layer {
           name: "text".to_string(),
+          source: LayerSource::User,
           data: LayerData::String {
             color: "black".to_string(),
             data: OrbitMap::new(Alphas::FACE),
@@ -359,6 +370,7 @@ impl Puzzle {
           stroke("gray"),
           stroke_width(GRID_STROKE_WIDTH),
           fill("transparent"),
+          key(face.0),
           on_mousedown(move |event: MouseEvent| {
             if event.button() != 0 {
               return Msg::None;
@@ -380,6 +392,10 @@ impl Puzzle {
       [legend([], [text("Layer")])]
         .into_iter()
         .chain(self.layers.iter().enumerate().map(|(i, l)| {
+          let name_style = match l.source {
+            LayerSource::User => None,
+            LayerSource::Solver => Some(style("font-style", "italic")),
+          };
           label(
             [],
             [
@@ -387,12 +403,13 @@ impl Puzzle {
                 [
                   r#type("radio"),
                   name("layer"),
+                  key(i),
                   on_click(move |_| Msg::SelectLayer(i)),
                   checked(self.active_layer == Some(i)),
                 ],
                 [],
               ),
-              text(&l.name),
+              span(name_style, [text(&l.name)]),
             ],
           )
         })),
@@ -425,7 +442,7 @@ impl Puzzle {
         ),
       ],
     ))
-  }
+ }
 
   fn view_solve_ui(&self) -> Option<Node<Msg>> {
     self.solve_endpoint.as_ref().map(|solve_endpoint| {
