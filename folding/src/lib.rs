@@ -7,6 +7,7 @@ use std::f64::consts::PI;
 
 use gmap::{Dart, GMap, OrbitMap};
 use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion, Vector3};
+use parry2d_f64::transformation::convex_polygons_intersection_points;
 use thiserror::Error;
 
 const ISO_ANGLE_EPSILON: f64 = 0.001;
@@ -279,6 +280,40 @@ impl FoldedState {
     })
   }
 
+  /// Compute the intersection of two parallel faces.  i must map both faces to a z-plane.
+  fn face_overlap(
+    &self,
+    cp: &CreasePattern,
+    coords: &OrbitMap<Point3<f64>>,
+    face1: Dart,
+    i: &Isometry3<f64>,
+    face2: Dart,
+  ) -> Option<Vec<Point2<f64>>> {
+    let points1: Vec<Point2<f64>> = cp
+      .g
+      .cycle(face1, &[0, 1])
+      .map(|v| {
+        let p = i * coords.map()[&v];
+        Point2::new(p.x, p.y)
+      })
+      .collect();
+    let points2: Vec<Point2<f64>> = cp
+      .g
+      .cycle(face2, &[0, 1])
+      .map(|v| {
+        let p = i * coords.map()[&v];
+        Point2::new(p.x, p.y)
+      })
+      .collect();
+    let mut output = vec![];
+    convex_polygons_intersection_points(&points1[..], &points2[..], &mut output);
+    if output.is_empty() {
+      None
+    } else {
+      Some(output)
+    }
+  }
+
   fn check_polygon_intersections(&self, cp: &CreasePattern) -> Result<(), Error> {
     let g = &cp.g;
     let shrunk_coords = intersection::shrunk_faces_coords(&cp.g, &self.folded_coords);
@@ -310,9 +345,9 @@ impl FoldedState {
         let p2 = self.folded_coords.map()[&face2];
 
         // check if angle between planes is small
-        if angle_diff.abs() < COPLANAR_ANGLE_EPSILON
-          || (angle_diff - PI).abs() < COPLANAR_ANGLE_EPSILON
-        {
+        let parallel_same = angle_diff.abs() < COPLANAR_ANGLE_EPSILON;
+        let parallel_flipped = (angle_diff - PI).abs() < COPLANAR_ANGLE_EPSILON;
+        if parallel_same || parallel_flipped {
           // The faces lie in near-parallel planes.  We need to check if they're coplanar.
 
           let coplanar = intersection::is_face_in_plane(&cp.g, &self.folded_coords, face1, n2, p2)
