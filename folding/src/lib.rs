@@ -7,7 +7,6 @@ use std::f64::consts::PI;
 
 use gmap::{Dart, GMap, OrbitMap};
 use na::{Isometry3, Point2, Point3, Rotation3, Unit, UnitQuaternion, Vector3};
-use parry2d_f64::transformation::convex_polygons_intersection_points;
 use thiserror::Error;
 
 const ISO_ANGLE_EPSILON: f64 = 0.001;
@@ -280,43 +279,12 @@ impl FoldedState {
     })
   }
 
-  /// Compute the intersection of two parallel faces.  i must map both faces to a z-plane.
-  fn face_overlap(
-    &self,
-    cp: &CreasePattern,
-    coords: &OrbitMap<Point3<f64>>,
-    face1: Dart,
-    i: &Isometry3<f64>,
-    face2: Dart,
-  ) -> Option<Vec<Point2<f64>>> {
-    let points1: Vec<Point2<f64>> = cp
-      .g
-      .cycle(face1, &[0, 1])
-      .map(|v| {
-        let p = i * coords.map()[&v];
-        Point2::new(p.x, p.y)
-      })
-      .collect();
-    let points2: Vec<Point2<f64>> = cp
-      .g
-      .cycle(face2, &[0, 1])
-      .map(|v| {
-        let p = i * coords.map()[&v];
-        Point2::new(p.x, p.y)
-      })
-      .collect();
-    let mut output = vec![];
-    convex_polygons_intersection_points(&points1[..], &points2[..], &mut output);
-    if output.is_empty() {
-      None
-    } else {
-      Some(output)
-    }
-  }
-
   fn check_polygon_intersections(&self, cp: &CreasePattern) -> Result<(), Error> {
     let g = &cp.g;
     let shrunk_coords = intersection::shrunk_faces_coords(&cp.g, &self.folded_coords);
+
+    // face1, face2, overlap in face1's coordinate system, face2 flipped relative to face1
+    let mut face_overlaps: Vec<(Dart, Dart, Vec<Point2<f64>>, bool)> = vec![];
 
     // loop over all pairs of faces
     let faces: Vec<Dart> = g.one_dart_per_cell(2).collect();
@@ -357,7 +325,10 @@ impl FoldedState {
           }
 
           // track intersections of coplanar faces
-          todo!("coplanar");
+          if let Some(o) = intersection::face_overlap(&cp.g, &shrunk_coords, face1, &i1.inverse(), face2)
+          {
+            face_overlaps.push((face1, face2, o, parallel_flipped));
+          }
         } else {
           // faces are nonparallel; check for intersections
           if intersection::do_faces_intersect(&cp.g, &shrunk_coords, face1, n1, face2, n2) {

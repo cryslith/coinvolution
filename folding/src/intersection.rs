@@ -1,7 +1,8 @@
 use crate::{FACE_SHRINK_EPSILON, PLANE_DISTANCE_EPSILON};
 
 use gmap::{Alphas, Dart, GMap, OrbitMap};
-use na::{Point3, Vector3};
+use na::{Isometry3, Point2, Point3, Vector3};
+use parry2d_f64::transformation::convex_polygons_intersection_points;
 
 /// Shrink each face by an epsilon value.  Maps each angle to a location.
 pub(crate) fn shrunk_faces_coords(
@@ -173,4 +174,35 @@ pub(crate) fn do_faces_intersect(
   let c4 = a2 < b2;
 
   !(c1 == c2 && c2 == c3 && c3 == c4)
+}
+
+/// Compute the intersection of two parallel faces.  i must map both faces to a z-plane.
+pub fn face_overlap(
+  g: &GMap,
+  coords: &OrbitMap<Point3<f64>>,
+  face1: Dart,
+  i: &Isometry3<f64>,
+  face2: Dart,
+) -> Option<Vec<Point2<f64>>> {
+  let points1: Vec<Point2<f64>> = g
+    .cycle(face1, &[0, 1])
+    .map(|v| {
+      let p = i * coords.map()[&v];
+      Point2::new(p.x, p.y)
+    })
+    .collect();
+  let points2: Vec<Point2<f64>> = g
+    .cycle(face2, &[0, 1])
+    .map(|v| {
+      let p = i * coords.map()[&v];
+      Point2::new(p.x, p.y)
+    })
+    .collect();
+  let mut output = vec![];
+  convex_polygons_intersection_points(&points1[..], &points2[..], &mut output);
+  if output.is_empty() {
+    None
+  } else {
+    Some(output)
+  }
 }

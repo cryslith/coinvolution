@@ -12,8 +12,8 @@
     * Also use close pairs of faces to determine close pairs of creases and crease-face pairs
   * Also eliminate pairs joined by creases since these will be handled separately [done]
   * Determine if faces are parallel [done]
-    * Check if they overlap in planar projection after slightly shrunk
-    * Compute and save intersection for later
+    * Check if they overlap in planar projection after slightly shrunk [done]
+    * Compute and save intersection for later [done]
   * If not, check if slightly-shrunk versions of faces intersect [done]
     * Fail if they do [done]
 * Check face-crease incidences
