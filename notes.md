@@ -54,6 +54,6 @@ https://cs.stackexchange.com/questions/111410/sat-algorithm-for-determining-if-a
 ## Building & Testing
 
     cd coin-web
-    wasm-pack build --debug --target web -- --features console_error_panic_hook,wee_alloc
+    wasm-pack build --debug --target web -- --features console_error_panic_hook
     python3 -m http.server
 

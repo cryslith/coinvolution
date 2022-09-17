@@ -6,10 +6,6 @@ use app::App;
 
 use sauron::prelude::*;
 
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
 #[wasm_bindgen(start)]
 pub fn main() {
   #[cfg(feature = "console_error_panic_hook")]
