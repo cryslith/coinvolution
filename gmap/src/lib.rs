@@ -406,6 +406,18 @@ impl GMap {
     })
   }
 
+  /// Iterate over the cycle obtained by repeatedly applying the alpha indices to d until it reaches d again.
+  pub fn cycle<'a>(&'a self, d: Dart, indices: &'a [usize]) -> impl Iterator<Item = Dart> + 'a {
+    std::iter::successors(Some(d), move |&x| {
+      let x = self.al(x, indices.iter().cloned());
+      if x == d {
+        None
+      } else {
+        Some(x)
+      }
+    })
+  }
+
   pub fn orbit(&self, d: Dart, a: Alphas) -> impl Iterator<Item = Dart> + '_ {
     self.orbit_indices(d, a).into_iter().map(|(_, d)| d)
   }
@@ -872,7 +884,6 @@ mod tests {
       let side: Vec<Dart> = g.orbit(Dart(0), Alphas::SIDE).sorted().collect();
       let dart: Vec<Dart> = g.orbit(Dart(0), Alphas(0)).sorted().collect();
       let all: Vec<Dart> = g.orbit(Dart(0), Alphas(!0)).sorted().collect();
-
       assert_eq!(vertex, darts([0, 5, 7, 8]));
       assert_eq!(edge, darts([0, 1, 6, 7]));
       assert_eq!(face, darts(0..6));
@@ -884,9 +895,15 @@ mod tests {
 
       let faces: Vec<Dart> = g.one_dart_per_cell(2).collect();
       let halfedges: Vec<Dart> = g.one_dart_per_orbit(Alphas::HALF_EDGE).collect();
-
       assert_eq!(faces.len(), 2);
       assert_eq!(halfedges.len(), 10);
+
+      let face0_cycle: Vec<Dart> = g.cycle(Dart(0), &[1, 0]).collect();
+      let face1_cycle: Vec<Dart> = g.cycle(Dart(1), &[1, 0]).collect();
+      let edge_cycle: Vec<Dart> = g.cycle(Dart(0), &[0, 2]).collect();
+      assert_eq!(face0_cycle, darts([0, 4, 2]));
+      assert_eq!(face1_cycle, darts([1, 3, 5]));
+      assert_eq!(edge_cycle, darts([0, 6]));
     }
 
     let mut g = diagonal_cp_example();
