@@ -18,6 +18,11 @@ Todo:
 - zoom and pan
 - display selected cell for text
 - deselect cell
+- Diagonals (e.g. Gokigen-Naname)
+  - How does this generalize to non-quadrilaterals?
+- Exclusive directed markers
+- Click and drag
+- Custom SVG markers?
 
 
 Goals:
@@ -25,15 +30,35 @@ Goals:
 - Support many ways of displaying information over graphs (e.g. color, text, arrows on edges, ...)
 - Support generalized cells (directed edges, single darts, ...) not just 0/1/2-cells
 - Allow graphs to contain gluings (e.g. tori) naturally
-- Stretch goal: allow the user to live-edit the graph itself
+  - Better handled on solver side
+- Allow the user to live-edit the graph itself?
 
 Non-goals
 - 3D display of any kind
 - Support for dimension higher than 2
 
+## Solving
+
+- Unsat cores
+
+Tricky things:
+- Connectivity constraints (e.g. Slitherlink)
+  - Build a minimum-distance tree over included nodes
+- Sightlines (e.g. Akari, Kakuro)
+  - Use coordinates?
+  - Specify alpha indices?
+- Shapes (e.g. Statue Garden, LITS)
+- Custom extra info
+  - Can always send as a user-specified layer
+
 Other thoughts:
-- Lots of examples of real puzzles solved with it
-  - e.g. every nikoli puzzle
+- Build solvers for puzzle genres
+  - Nikoli & others
+- Build demos for existing puzzles
+  - Mobius strip: https://puzzles.mit.edu/2021/puzzle/slithe%C9%B9l%E1%B4%89u%CA%9Es/
+  - Triangle: https://puzzles.mit.edu/2022/puzzle/dancing-triangles/
+  - Hex: https://puzzles.covering.space/58/ https://puzzles.covering.space/62/ https://puzzles.covering.space/54/
+  - Torus: https://puzzles.covering.space/3/
 - Find efficient ways of using SAT solvers
 - Consider using ASP for solving
 
