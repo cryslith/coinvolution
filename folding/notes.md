@@ -8,7 +8,7 @@
   * Fail if isometries are inconsistent [done]
 * For every pair of faces
   * Use bounding boxes to eliminate far pairs
-    * Bounding boxes should have minimum dimensions so that we get parallel close-to-planar pairs
+    * Bounding boxes should have lower bounds on the dimensions so that we can't miss parallel close-to-planar pairs
     * Also use close pairs of faces to determine close pairs of creases and crease-face pairs
   * Also eliminate pairs joined by creases since these will be handled separately [done]
   * Determine if faces are parallel [done]
@@ -17,7 +17,7 @@
   * If not, check if slightly-shrunk versions of faces intersect [done]
     * Fail if they do [done]
 * Check face-crease incidences
-  * Crease is close to plane, and shrunk projected crease intersects shrunk face
+  * (original) crease is close to plane, and shrunk projected crease intersects shrunk face
 * Check crease-crease incidences
   * Creases are close to collinear, and shrunk projected creases intersect
 * Find triangles in intersection graph of faces
