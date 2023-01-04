@@ -1,6 +1,7 @@
 #[macro_use]
 pub mod utils;
 pub mod puzzle;
+pub mod request;
 pub mod svg;
 
 use puzzle::Puzzle;

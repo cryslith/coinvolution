@@ -9,16 +9,26 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 itertools = "0.10"
-gmap = { path = "../gmap" }
-wasm-bindgen = { version = "0.2.63", features = ["nightly"] }
+gmap = { path = "../gmap", features = ["serde"] }
+wasm-bindgen = { version = "0.2.63" }
+wasm-bindgen-futures = "0.4.33"
 console_error_panic_hook = { version = "0.1.6", optional = true }
-sauron = "0.49"
+sauron = "0.51"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
 
 [dependencies.web-sys]
 version = "0.3"
 features = [
-  "console",
+  "Headers",
+  "Request",
+  "RequestInit",
+  "RequestMode",
+  "Response",
   "WheelEvent",
+  "Window",
+  "console",
 ]
 
 [dev-dependencies]

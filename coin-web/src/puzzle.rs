@@ -1,4 +1,7 @@
-use crate::svg::client_to_svg;
+use crate::{
+  request::{SolveRequest, SolveResponse},
+  svg::client_to_svg,
+};
 
 use gmap::{grids::hex, Alphas, Dart, GMap, OrbitMap};
 
@@ -7,8 +10,11 @@ use sauron::{
   html::attributes::{name, style, tabindex},
   prelude::*,
 };
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use wasm_bindgen::JsCast;
-use web_sys::WheelEvent;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{Request, RequestInit, RequestMode, Response, WheelEvent};
 
 const GRID_STROKE_WIDTH: f64 = 0.05;
 const DOT_RADIUS: f64 = 0.1;
@@ -29,6 +35,7 @@ pub enum Msg {
   None,
 }
 
+#[derive(Clone)]
 pub enum Marker {
   Dot,
   Cross,
@@ -41,29 +48,56 @@ pub enum Marker {
 
 pub type Color = String;
 
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum LayerData {
   String {
+    #[serde(skip)]
     color: Color,
     data: OrbitMap<String>,
+    #[serde(skip)]
     size: f64,
+    #[serde(skip)]
     size_scaling: f64,
   },
   Enum {
+    #[serde(skip)]
     spec: Vec<(Marker, Color)>,
     data: OrbitMap<usize>,
   },
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub enum LayerSource {
   User,
   Solver,
 }
+fn layersource_solver() -> LayerSource {
+  LayerSource::Solver
+}
 
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Layer {
   name: String,
+  #[serde(skip, default = "layersource_solver")]
   source: LayerSource,
+  #[serde(flatten)]
   data: LayerData,
+  #[serde(skip)]
   active_dart: Option<Dart>,
+}
+
+#[derive(Debug, Error)]
+enum SolveError {
+  #[error("{0:?}")]
+  Js(JsValue),
+  #[error(transparent)]
+  Json(#[from] serde_json::Error),
+}
+impl From<JsValue> for SolveError {
+  fn from(x: JsValue) -> Self {
+    Self::Js(x)
+  }
 }
 
 pub struct Puzzle {
@@ -442,7 +476,7 @@ impl Puzzle {
         ),
       ],
     ))
- }
+  }
 
   fn view_solve_ui(&self) -> Option<Node<Msg>> {
     self.solve_endpoint.as_ref().map(|solve_endpoint| {
@@ -454,6 +488,43 @@ impl Puzzle {
         )],
       )
     })
+  }
+
+  fn solve_request(&self) -> SolveRequest {
+    SolveRequest {
+      graph: self.g.clone(),
+      layers: self
+        .layers
+        .iter()
+        .filter(|l| l.source == LayerSource::User)
+        .cloned()
+        .collect(),
+    }
+  }
+
+  async fn solve(solve_request: SolveRequest, solve_endpoint: String) -> Result<Msg, SolveError> {
+    let mut opts = RequestInit::new();
+    opts.method("POST");
+    opts.mode(RequestMode::Cors);
+    opts.body(Some(&serde_json::to_string(&solve_request)?.into()));
+
+    let request = Request::new_with_str_and_init(&solve_endpoint, &opts)?;
+
+    request.headers().set("Accept", "application/json")?;
+
+    let window = web_sys::window().unwrap();
+    let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
+
+    // `resp_value` is a `Response` object.
+    assert!(resp_value.is_instance_of::<Response>());
+    let resp: Response = resp_value.dyn_into().unwrap();
+
+    // Convert this other `Promise` into a rust `Future`.
+    let json = JsFuture::from(resp.json()?).await?;
+
+    // Send the JSON response back to JS.
+    // Ok(json);
+    todo!();
   }
 }
 
@@ -512,6 +583,16 @@ impl Application<Msg> for Puzzle {
       }
       Msg::Solve => {
         log!("event: solve");
+        let solve_request = self.solve_request();
+        let solve_endpoint = self.solve_endpoint.clone().unwrap();
+        return Cmd::from_async(async move {
+          Self::solve(solve_request, solve_endpoint)
+            .await
+            .unwrap_or_else(|e| {
+              log!("solve error");
+              Msg::None
+            })
+        });
       }
       Msg::None => {}
     }
@@ -581,6 +662,10 @@ impl Application<Msg> for Puzzle {
         ),
       )],
     )
+  }
+
+  fn style(&self) -> String {
+    "".to_string()
   }
 }
 
