@@ -1,5 +1,3 @@
-#[cfg(feature = "serde")]
-pub mod format;
 pub mod grids;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -31,6 +29,7 @@ pub enum GMapError {
   Deleted,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Dart(pub usize);
 
@@ -88,6 +87,8 @@ impl Alphas {
 /// Maximum dimension allowed.  The memory requirement goes up exponentially with dimension, so 31 should be more than enough.
 pub const MAX_DIMENSION: usize = 31;
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct GMap {
   // This is a usize because we need to index by dimensions so often it's unwieldy to store it as something smaller.
   dimension: usize,
@@ -688,6 +689,8 @@ impl Iterator for OrbitImpl<'_> {
 }
 
 /// Map from orbits to A.  Duplicates its values once for each dart in the orbit.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone)]
 pub struct OrbitMap<A> {
   map: HashMap<Dart, A>,
   indices: Alphas,
