@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Request, RequestInit, RequestMode, Response, WheelEvent};
+use web_sys::{Headers, Request, RequestInit, RequestMode, Response, WheelEvent};
 
 const GRID_STROKE_WIDTH: f64 = 0.05;
 const DOT_RADIUS: f64 = 0.1;
@@ -111,7 +111,7 @@ pub struct Puzzle {
 
 impl Puzzle {
   pub fn new(solve_endpoint: Option<String>) -> Self {
-    let (g, rows) = hex::new(10, 10);
+    let (g, rows) = hex::new(2, 2);
     let coords = hex::vertex_coords(&g, &rows);
     let mut layout = OrbitMap::new(Alphas::VERTEX);
     for v in g.one_dart_per_cell(0) {
@@ -507,10 +507,13 @@ impl Puzzle {
     opts.method("POST");
     opts.mode(RequestMode::Cors);
     opts.body(Some(&serde_json::to_string(&solve_request)?.into()));
+    let headers = Headers::new()?;
+    headers.set("Accept", "application/json")?;
+    headers.set("Content-Type", "application/json")?;
+    log!("{:?}", headers);
+    opts.headers(&headers);
 
     let request = Request::new_with_str_and_init(&solve_endpoint, &opts)?;
-
-    request.headers().set("Accept", "application/json")?;
 
     let window = web_sys::window().unwrap();
     let resp_value = JsFuture::from(window.fetch_with_request(&request)).await?;
@@ -568,7 +571,7 @@ impl Application<Msg> for Puzzle {
         }
       }
       Msg::Zoom(magnitude, x, y) => {
-        log!("event: zoom");
+        log!("event: zoom (magnitude = {})", magnitude);
         let r = ZOOM_BASE.powf(magnitude);
         let [bx, by, bw, bh] = self.viewbox;
         let nx = bx + (x - bx) * (1. - r);
@@ -600,6 +603,7 @@ impl Application<Msg> for Puzzle {
   }
 
   fn view(&self) -> Node<Msg> {
+    log!("svg viewbox: {:?}", self.viewbox);
     article(
       [],
       [div(
