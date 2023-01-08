@@ -266,8 +266,8 @@ class GMap:
                     'type': 'array',
                     'items': {
                         'type': 'integer',
-                    }
-                }
+                    },
+                },
             },
         },
         'required': ['dimension', 'alpha'],
