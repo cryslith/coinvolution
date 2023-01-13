@@ -35,10 +35,10 @@ impl From<crate::GMap> for GMap {
   }
 }
 
-impl TryInto<crate::GMap> for GMap {
+impl TryFrom<GMap> for crate::GMap {
   type Error = crate::GMapError;
-  fn try_into(self) -> Result<crate::GMap, Self::Error> {
-    crate::GMap::from_alpha(self.dimension, self.alpha)
+  fn try_from(o: GMap) -> Result<Self, Self::Error> {
+    Self::from_alpha(o.dimension, o.alpha)
   }
 }
 
@@ -51,8 +51,8 @@ impl From<crate::Alphas> for Alphas {
   }
 }
 
-impl Into<crate::Alphas> for Alphas {
-  fn into(self) -> crate::Alphas {
-    crate::Alphas::from_indices(self.0)
+impl From<Alphas> for crate::Alphas {
+  fn from(o: Alphas) -> Self {
+    Self::from_indices(o.0)
   }
 }

@@ -44,8 +44,8 @@ impl fmt::Display for Dart {
 /// Bitfield where bit i is 1 if alpha_i should be included as a generator.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
-  features = "serde",
-  serde(from = "format::Alphas", into = "format::Alphas")
+  feature = "serde",
+  serde(try_from = "format::Alphas", into = "format::Alphas")
 )]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Alphas(pub u32);
@@ -93,6 +93,11 @@ impl Alphas {
 /// Maximum dimension allowed.  The memory requirement goes up exponentially with dimension, so 31 should be more than enough.
 pub const MAX_DIMENSION: usize = 31;
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+  feature = "serde",
+  serde(try_from = "format::GMap", into = "format::GMap")
+)]
 #[derive(Clone)]
 pub struct GMap {
   // This is a usize because we need to index by dimensions so often it's unwieldy to store it as something smaller.

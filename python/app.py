@@ -1,6 +1,7 @@
 import gmap
 import jsonschema
 from quart import Quart, abort, render_template, request, url_for
+import traceback
 
 def create_app(solvers):
     app = Quart(__name__)
@@ -60,13 +61,14 @@ def create_app(solvers):
                 {
                     'name': v['name'],
                     'type': v['type'],
-                    'data': gmap.OrbitMap.deserialize(v['data']),
+                    'data': gmap.OrbitDict.deserialize(v['data']),
                 }
                 for v in data['layers']
             ]
             extra = data.get('extra')
         except (ValueError, KeyError, jsonschema.ValidationError) as e:
-            return {'error': str(e)}, 400
+            traceback.print_exc()
+            return {'error': repr(e)}, 400
 
         output = s(graph, layers, extra=extra)
 

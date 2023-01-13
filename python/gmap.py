@@ -283,7 +283,8 @@ class GMap:
     def deserialize(cls, x):
         jsonschema.validate(x, schema=cls.schema)
         dimension, alpha = x['dimension'], x['alpha']
-        numbered_darts = {Dart(dimension, n) for n in alpha}
+        alpha = {int(k): v for (k, v) in alpha.items()}
+        numbered_darts = {k: Dart(dimension, k) for k in alpha}
         for n, v in alpha.items():
             numbered_darts[n].alpha = [numbered_darts[i] for i in v]
         o = GMap(dimension, numbered_darts.values())

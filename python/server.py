@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 from app import create_app
-
-def solve(graph, layers, extra=None):
-    pass
+import simpleloop
 
 if __name__ == '__main__':
-    create_app({'custom': solve}).run()
+    create_app({'custom': simpleloop.solve}).run()

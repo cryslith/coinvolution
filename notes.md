@@ -2,6 +2,9 @@
 
 - Optimize data structures
   - Consider using tinyset or smallset for orbit searches
+  - Consider map<dart, smallvec<dart>> for gmap alphas
+- Include orbit reprs into gmap
+  - Change orbit maps to use orbit reprs instead of cloning
 - Add more constructions:
   - prisms (product with an interval)
     - redo grids in terms of prisms?
