@@ -1,3 +1,5 @@
+#[cfg(feature = "serde")]
+mod format;
 pub mod grids;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -40,6 +42,11 @@ impl fmt::Display for Dart {
 }
 
 /// Bitfield where bit i is 1 if alpha_i should be included as a generator.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+  features = "serde",
+  serde(from = "format::Alphas", into = "format::Alphas")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Alphas(pub u32);
 
@@ -106,18 +113,29 @@ impl Index<(Dart, usize)> for GMap {
 
 impl GMap {
   pub fn empty(dimension: usize) -> Result<Self, GMapError> {
-    Self::from_alpha(dimension, vec![])
+    Self::from_alpha(dimension, HashMap::new())
   }
 
-  pub fn from_alpha(dimension: usize, alpha: Vec<Dart>) -> Result<Self, GMapError> {
+  pub fn from_alpha(dimension: usize, alpha: HashMap<Dart, Vec<Dart>>) -> Result<Self, GMapError> {
+    dbg!(&dimension, &alpha);
     if dimension > MAX_DIMENSION {
       return Err(GMapError::DimensionTooLarge);
     }
-    let ndarts = alpha.len() / (dimension + 1);
-    let deleted = vec![false; ndarts];
+    let dartbound = alpha.keys().map(|d| d.0).max().map(|x| x + 1).unwrap_or(0);
+    let mut alpha_vec = vec![Dart(0); dartbound * (dimension + 1)];
+    let mut deleted = vec![true; dartbound];
+    for (k, v) in alpha.into_iter() {
+      if v.len() != dimension + 1 {
+        return Err(GMapError::InvalidAlpha("incorrect length".to_string()));
+      }
+      for (i, x) in v.into_iter().enumerate() {
+        alpha_vec[k.0 * (dimension + 1) + i] = x;
+      }
+      deleted[k.0] = false;
+    }
     let g = GMap {
       dimension,
-      alpha,
+      alpha: alpha_vec,
       deleted,
     };
     g.check_valid()?;
@@ -189,7 +207,7 @@ impl GMap {
 
   /// Number of darts (including deleted)
   #[inline(always)]
-  pub fn ndarts(&self) -> usize {
+  fn ndarts(&self) -> usize {
     self.alpha.len() / (self.dimension + 1)
   }
 
@@ -199,7 +217,7 @@ impl GMap {
       .filter(|&d| !self.is_deleted(d))
   }
 
-  pub fn alpha(&self) -> &[Dart] {
+  pub(crate) fn alpha(&self) -> &[Dart] {
     &self.alpha
   }
 
@@ -251,7 +269,7 @@ impl GMap {
     }
   }
 
-  pub fn is_deleted(&self, d: Dart) -> bool {
+  pub(crate) fn is_deleted(&self, d: Dart) -> bool {
     self.deleted[d.0]
   }
 
@@ -687,6 +705,7 @@ impl Iterator for OrbitImpl<'_> {
 }
 
 /// Map from orbits to A.  Duplicates its values once for each dart in the orbit.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone)]
 pub struct OrbitMap<A> {
   map: HashMap<Dart, A>,
@@ -844,9 +863,19 @@ mod tests {
     x.into_iter().map(Dart).collect()
   }
 
+  fn dartlist_to_map(dimension: usize, alpha: Vec<Dart>) -> HashMap<Dart, Vec<Dart>> {
+    alpha
+      .into_iter()
+      .chunks(dimension + 1)
+      .into_iter()
+      .enumerate()
+      .map(|(i, c)| (Dart(i), c.collect()))
+      .collect()
+  }
+
   fn diagonal_cp_example() -> GMap {
     #[rustfmt::skip]
-    let alpha = darts([
+    let alpha = dartlist_to_map(2, darts([
       1, 5, 7,
       0, 2, 6,
       3, 1, 2,
@@ -859,7 +888,7 @@ mod tests {
       8, 10, 9,
       11, 9, 10,
       10, 6, 11,
-    ]);
+    ]));
     GMap::from_alpha(2, alpha).unwrap()
   }
 
@@ -979,10 +1008,10 @@ mod tests {
 
     #[rustfmt::skip]
     {
-      g = GMap::from_alpha(2, darts([
+      g = GMap::from_alpha(2, dartlist_to_map(2, darts([
         1, 0, 1,
         0, 1, 0,
-      ])).unwrap()
+      ]))).unwrap()
     };
     g.unsew(Dart(0), 2).unwrap_err();
     assert!(!g.is_free(Dart(0), 2));
