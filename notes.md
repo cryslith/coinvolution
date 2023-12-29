@@ -1,20 +1,23 @@
 ## GMap library
 
-- Optimize data structures
-  - Consider using tinyset or smallset for orbit searches
-  - Consider map<dart, smallvec<dart>> for gmap alphas
+# - Optimize data structures
+#   - Consider using tinyset or smallset for orbit searches
+#   - Consider map<dart, smallvec<dart>> for gmap alphas
+- Gmap shouldn't be a type, it should be an interface
+  - Dart is associated type for different kinds of gmap to allow efficient implementation of grids
+  - Can always convert to explicit representation
 - Include orbit reprs into gmap
+  - Orbit repr is minimum dart in orbit
+  - Each orbit has a canonical dart representing it
   - Change orbit maps to use orbit reprs instead of cloning
-- Add more constructions:
-  - prisms (product with an interval)
-    - redo grids in terms of prisms?
-  - coproduct (should be easy)
 
 ## Graph display
 
 Todo:
+- graph/grid editor
+- Standardize layers by type of element (like penpa)
+  - avoid named layers for the most part
 - solver integration
-- graph editor
 - test on more grids
   - Fix bug with selecting lines on thin triangles
 - layer options (marker types, size/color config)
@@ -26,6 +29,8 @@ Todo:
 - Exclusive directed markers
 - Click and drag
 - Custom SVG markers?
+
+- Change web interface to use js for UI and only call out to rust for gmap logic.  Don't use rust to drive UI / state
 
 
 Goals:
@@ -42,14 +47,16 @@ Non-goals
 
 ## Solving
 
-- Unsat cores
+- Unsat cores?
+- Uniqueness checking, finding things
 
 Tricky things:
 - Connectivity constraints (e.g. Slitherlink)
-  - Build a minimum-distance tree over included nodes
+  - Compute minimum distance to root for each included nodes
+  - Use a unique criterion (e.g. first included) to choose root
 - Sightlines (e.g. Akari, Kakuro)
   - Use coordinates?
-  - Specify alpha indices?
+  - Specify paths using periodic alpha indices?
 - Shapes (e.g. Statue Garden, LITS)
 - Custom extra info
   - Can always send as a user-specified layer

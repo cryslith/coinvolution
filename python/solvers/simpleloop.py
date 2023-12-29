@@ -6,7 +6,7 @@ from gmap import *
 def other_face(face, edge):
     for f in edge.one_dart_per_incident_cell(2, 1):
         if face not in f.cell(2):
-            return face
+            return f
 
 def solve(g, layers, extra=None):
     s = Solver()
@@ -33,10 +33,10 @@ def solve(g, layers, extra=None):
                 s.add(d == 0)
             else:
                 s.add(And([d > 0, d < infinity]))
-                neighbor_dists = [If(edges[e], dists[other_face(f, e)], infinity) for e in f.one_dart_per_incident_cell(1, 2) if other_face(f, e) is not None]
+                neighbor_dists = [If(edges[e], dists[other_face(f, e)]+1, infinity) for e in f.one_dart_per_incident_cell(1, 2) if other_face(f, e) is not None]
                 s.add(Or([d == n for n in neighbor_dists]))
-                s.add(And([d <= n + 1 for n in neighbor_dists]))
-    # connectivity()
+                s.add(And([d <= n for n in neighbor_dists]))
+    connectivity()
 
     output_edges = CellDict(1, 2)
     s.check()
