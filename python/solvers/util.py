@@ -1,7 +1,7 @@
 from collections import defaultdict
 from z3 import *
 
-def connectivity(s, vertices, edges, basepoints=None):
+def connectivity(s, vertices, edges, basepoints=None, acylic=False):
     '''
     Compute connected components of a subgraph of a graph (V, E)
     where the subgraph is given by z3 bools.
@@ -11,6 +11,7 @@ def connectivity(s, vertices, edges, basepoints=None):
     edges: dict from E to z3 bool for whether each edge is included in the subgraph.  an edge incident to an inactive vertex will always be considered inactive regardless of its value.
     basepoints (optional): list of basepoints from which to compute distances.  each connected component will be constrained to have exactly one basepoint.  component identifiers will be assigned in iteration order over the basepoints.  each basepoint will be automatically constrained to be included.
     if basepoints is not provided then component identifiers and basepoints are assigned using iteration order on vertices.
+    acyclic (optional): if True, then constrain the subgraph to be acyclic.
 
     return: ncc, component, distance
     ncc: number of connected components
@@ -34,7 +35,7 @@ def connectivity(s, vertices, edges, basepoints=None):
         s.add(Implies(And(vertices[i], vertices[j], active),
                       component[i] == component[j]))
 
-    # ncc
+    # number of connected components
     s.add(Or(
         ncc == 0,
         Or([And(active, ncc == component[v] + 1)
@@ -66,21 +67,30 @@ def connectivity(s, vertices, edges, basepoints=None):
                 s.add(distance[v] != 0)
 
 
+    # record active neighbors via active edges
     neighbors = defaultdict(list)
     for (u, v), active in edges.items():
-        neighbors[u].append((v, active))
-        neighbors[v].append((u, active))
-        
+        neighbors[u].append((v, And(vertices[v], active)))
+        neighbors[v].append((u, And(vertices[u], active)))
+
     # non-root distance is min of dist+1 of neighbors
     for u in vertices:
         s.add(Implies(
             distance[u] > 0,
             And(
-                And([Implies(And(vertices[v], active),
-                             distance[u] <= distance[v]+1)
+                And([Implies(active, distance[u] <= distance[v]+1)
                      for v, active in neighbors[u]]),
-                Or([And(vertices[v], active,
-                        distance[u] == distance[v]+1)
+                Or([And(active, distance[u] == distance[v]+1)
                     for v, active in neighbors[u]]),
             )))
+
+    # acyclicity
+    if acyclic:
+        for u in vertices:
+            # exactly 1 neighbor of non-root u has distance at most distance[u]
+            s.add(Implies(
+                distance[u] > 0,
+                Sum([If(And(active, distance[v] <= distance[u]), 1, 0)
+                     for v, active in neighbors[u]] == 1)))
+
     return ncc, component, distance
