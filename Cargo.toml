@@ -6,6 +6,7 @@ members = [
     "graph-folding",
     "graph-folding-web",
 ]
+resolver = "2"
 
 
 [profile.release]
