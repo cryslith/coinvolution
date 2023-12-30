@@ -1,0 +1,12 @@
+[project]
+name = "coinvolution"
+version = "0.0.1"
+dependencies = [
+  "jsonschema",
+  "quart",
+  "z3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
