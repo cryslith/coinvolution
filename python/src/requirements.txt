@@ -1,3 +1,0 @@
-jsonschema >= 4.15
-quart[dotenv] >= 0.18
-z3-solver >= 4.11

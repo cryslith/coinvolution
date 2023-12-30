@@ -1,4 +1,5 @@
-import gmap
+from . import gmap
+
 import jsonschema
 from quart import Quart, abort, render_template, request, url_for
 import traceback

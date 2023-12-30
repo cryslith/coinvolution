@@ -10,12 +10,13 @@
       z3
     ];
     coinvolution-py = ps: with ps; (
-      ps.buildPythonPackage {
+      ps.buildPythonPackage rec {
         pname = "coinvolution";
         version = "0.0.1";
-        src = ./src;
+        src = ./.;
         pyproject = true;
         nativeBuildInputs = [ ps.hatchling ];
+        pythonImportsCheck = [ pname ];
       }
     );
   in {

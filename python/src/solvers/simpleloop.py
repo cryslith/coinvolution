@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
+from ..gmap import *
+
 from z3 import *
-from gmap import *
 
 def other_face(face, edge):
     for f in edge.one_dart_per_incident_cell(2, 1):
