@@ -3,7 +3,8 @@
 # Main ideas are from
 # https://doc.cgal.org/latest/Generalized_map/index.html
 
-from collections.abc import MutableMapping, ABC, abstractmethod
+from abc import  ABC, abstractmethod
+from collections.abc import MutableMapping
 import itertools
 
 import jsonschema
@@ -52,7 +53,7 @@ class GMap(ABC):
 
     @abstractmethod
     def darts(self):
-        '''return iterator over all darts.  darts must compare in the same order as this method'''
+        '''return iterator over all darts.  darts must be immutable, hashable, and compararable (in the same order as returned by this method)'''
         pass
 
     @abstractmethod
