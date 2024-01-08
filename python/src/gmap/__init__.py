@@ -17,7 +17,7 @@ import jsonschema
 
 class Alphas:
     '''set of alpha indices represented as bitstring'''
-    def __init__(bits):
+    def __init__(self, bits):
         self.bits = bits
 
     @classmethod

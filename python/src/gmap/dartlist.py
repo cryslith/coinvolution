@@ -1,6 +1,6 @@
-from .gmap import GMap
+from . import GMap
 
-class Dart(GMap):
+class Dart:
     def __init__(self, dimension, number):
         self.alpha = [self] * (dimension + 1)
         self.number = number
@@ -60,7 +60,7 @@ class Dart(GMap):
         return 'Dart({}, {})'.format(self.number, [x.number for x in self.alpha])
 
 
-class Dartlist:
+class Dartlist(GMap):
     def __init__(self, dimension, darts=()):
         '''
         dimension: dimension of each dart

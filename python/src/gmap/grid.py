@@ -1,8 +1,10 @@
-from .gmap import GMap
+from . import GMap
 
 import itertools
 
 class Grid(GMap):
+    dimension = 2
+
     '''
     n * m grid; n rows, m columns.
     rows increase from north to south,
@@ -11,16 +13,14 @@ class Grid(GMap):
     darts are of the form (y, x, i) where y and x give the coordinates of the square.  i=0 for the top-left dart in the square, i=1 for the top-right dart, i=2 for the right-up dart, etc
     '''
     def __init__(self, n, m):
-        self.n = n
-        self.m = m
+        self.height = n
+        self.width = m
 
-        # Each square is the dart on the square's north edge, northwest vertex
-
-    def has_square(y, x):
-        return 0 <= y < self.n and 0 <= x < self.m
+    def has_square(self, y, x):
+        return 0 <= y < self.height and 0 <= x < self.width
 
     def darts(self):
-        return ((y, x, i) for y in range(self.n) for x in range(self.m) for i in range(8))
+        return ((y, x, i) for y in range(self.height) for x in range(self.width) for i in range(8))
 
     def alpha(self, dart, j):
         (y, x, i) = dart
@@ -69,13 +69,13 @@ class Grid(GMap):
         return self.vertex((y, x, 4))
 
     def v_at_loc(self, y, x):
-        if not (0 <= y <= self.n and 0 <= x <= self.m):
+        if not (0 <= y <= self.height and 0 <= x <= self.width):
             raise ValueError
-        if y == self.n:
-            if x == self.m:
+        if y == self.height:
+            if x == self.width:
                 return self.v_br(y-1, x-1)
             return self.v_bl(y-1, x)
-        if x == self.m:
+        if x == self.width:
             return self.v_tr(y, x-1)
         return self.v_tl(y, x)
 
