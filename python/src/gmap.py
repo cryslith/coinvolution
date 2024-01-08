@@ -1,8 +1,7 @@
 # Generalized maps
 
-# Follows the description at
+# Main ideas are from
 # https://doc.cgal.org/latest/Generalized_map/index.html
-# and adapts code from CGAL too
 
 from collections.abc import MutableMapping, ABC, abstractmethod
 import itertools
@@ -110,7 +109,7 @@ class GMap(ABC):
     def one_dart_per_orbit(self, a):
         return unique_by_orbit(self.darts(), a)
 
-    def one_dart_per_incident_orbit(self, dart, a, b):
+    def shared_dart_per_incident_orbit(self, dart, a, b):
         '''
         one dart per a-orbit incident to self's b-orbit.
         darts are guaranteed to be in both orbits.
@@ -120,7 +119,7 @@ class GMap(ABC):
         return self.unique_by_orbit(self.orbit(dart, b), a)
 
     def rep(self, dart, a):
-        '''Obtain the representative (minimum) element of dart's a-orbit.'''
+        '''Obtain dart's a-rep: the minimum element of dart's a-orbit.'''
         return min(self.orbit(dart, a))
 
     def vertex(self, dart):
@@ -129,3 +128,29 @@ class GMap(ABC):
         return self.rep(dart, Alphas.EDGE)
     def face(self, dart):
         return self.rep(dart, Alphas.FACE)
+
+    def rep_per_orbit(self, l, a):
+        '''
+        returns a-rep of each dart in iterator l.
+        only one item is returned for each a-orbit.
+
+        a: Alphas
+        '''
+        seen = set()
+        for dart in l:
+            if dart in seen:
+                continue
+            b = dart
+            for n in self.orbit(dart, a):
+                if n < b:
+                    b = n
+                seen.add(n)
+            yield b
+
+    def rep_per_incident_orbit(self, dart, a, b):
+        '''
+        a-rep of each a-orbit incident to dart's b-orbit.
+
+        a, b: alpha-list
+        '''
+        return self.rep_per_orbit(self.orbit(dart, b), a)
