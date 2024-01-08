@@ -1,15 +1,13 @@
 ## GMap library
 
-# - Optimize data structures
-#   - Consider using tinyset or smallset for orbit searches
-#   - Consider map<dart, smallvec<dart>> for gmap alphas
 - Gmap shouldn't be a type, it should be an interface
   - Dart is associated type for different kinds of gmap to allow efficient implementation of grids
   - Can always convert to explicit representation
-- Include orbit reprs into gmap
-  - Orbit repr is minimum dart in orbit
-  - Each orbit has a canonical dart representing it
-  - Change orbit maps to use orbit reprs instead of cloning
+- Use minimum darts for orbit maps
+  - Each orbit is represented by its minimum element
+  - Avoid cloning in maps
+- Tests for python version
+- Port python improvements to rust
 
 ## Graph display
 
@@ -26,19 +24,17 @@ Todo:
 - deselect cell
 - Diagonals (e.g. Gokigen-Naname)
   - How does this generalize to non-quadrilaterals?
-- Exclusive directed markers
+- Directed-edge markers (both ways)
 - Click and drag
 - Custom SVG markers?
 
-- Change web interface to use js for UI and only call out to rust for gmap logic.  Don't use rust to drive UI / state
+- Change web interface to use js for UI and only use rust for gmap logic and state.  Don't use rust to drive UI
 
 
 Goals:
 - Interaction with grids should be as natural as possible
 - Support many ways of displaying information over graphs (e.g. color, text, arrows on edges, ...)
 - Support generalized cells (directed edges, single darts, ...) not just 0/1/2-cells
-- Allow graphs to contain gluings (e.g. tori) naturally
-  - Better handled on solver side
 - Allow the user to live-edit the graph itself?
 
 Non-goals
