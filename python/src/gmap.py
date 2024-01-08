@@ -119,88 +119,13 @@ class GMap(ABC):
         '''
         return self.unique_by_orbit(self.orbit(dart, b), a)
 
+    def rep(self, dart, a):
+        '''Obtain the representative (minimum) element of dart's a-orbit.'''
+        return min(self.orbit(dart, a))
 
-# todo reimplement using min-darts in orbits instead of multiple references
-class OrbitDict(MutableMapping):
-    '''Dictionary over orbits'''
-
-    def __init__(self, a):
-        self.darts = {}
-        self.a = a
-
-    @classmethod
-    def over_cells(cls, i, dim=None):
-        '''Dictionary over i-cells in dim'''
-        return cls(cell_alphas(i, dim))
-
-    def __getitem__(self, dart):
-        return self.darts[dart]
-
-    def __setitem__(self, dart, value):
-        for d in dart.orbit(self.a):
-            self.darts[d] = value
-
-    def __delitem__(self, dart):
-        for d in dart.orbit(self.a):
-            del self.darts[d]
-
-    def __iter__(self):
-        return unique_by_orbit(self.darts, self.a)
-
-    def __len__(self):
-        raise TypeError
-
-    def resolve_sew(self, sew_list, merge=None):
-        '''
-        fix up the mapping to account for a sewing.
-        sew_list is a list of darts sewn.
-        merge function is used to merge pairs of values if both are present
-        (default is take left)
-        '''
-        if merge is None:
-            merge = lambda x, _: x
-        for (d1, d2) in sew_list:
-            if d1 in self.darts:
-                if d2 in self.darts:
-                    v = merge(self.darts[d1], self.darts[d2])
-                    self.darts[d1] = v
-                    self.darts[d2] = v
-                else:
-                    self.darts[d2] = self.darts[d1]
-            else:
-                if d2 in self.darts:
-                    self.darts[d1] = self.darts[d2]
-
-    schema = {
-        'type': 'object',
-        'properties': {
-            'indices': {
-                'type': 'array',
-                'items': {
-                    'type': 'integer',
-                }
-            },
-            'map': {
-                'type': 'object',
-            },
-        },
-        'required': ['indices', 'map'],
-    }
-
-    def serialize(self):
-        darts = {d.number: v for d, v in self.darts.items()}
-        output = {'indices': self.a, 'map': darts}
-        jsonschema.validate(output, schema=self.schema)
-        return output
-
-    @classmethod
-    def deserialize(cls, x):
-        jsonschema.validate(x, schema=cls.schema)
-        indices, darts = x['indices'], x['map']
-        s = cls(indices)
-        s.darts = {int(k): v for k, v in darts.items()}
-        return s
-
-
-def CellDict(i, dim=None):
-    return OrbitDict.over_cells(i, dim)
+    def vertex(self, dart):
+        return self.rep(dart, Alphas.VERTEX)
+    def edge(self, dart):
+        return self.rep(dart, Alphas.EDGE)
+    def face(self, dart):
+        return self.rep(dart, Alphas.FACE)
