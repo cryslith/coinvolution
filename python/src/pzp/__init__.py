@@ -15,6 +15,7 @@ def decode(s):
     data = m.group(5)
     g = Grid(height, width)
     layers = []
+    extra = None
     if variety == 'slither':
         (decoded, data) = decode_4cell(height, width, data)
         if data:
@@ -39,7 +40,7 @@ def decode(s):
         ]
     else:
         raise ValueError(f'unknown variety {variety}')
-    return (variety, g, layers)
+    return (variety, g, layers, extra)
 
 def decode_4cell(height, width, data):
     r = []

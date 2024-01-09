@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from ..gmap import *
 
 from z3 import *

@@ -4,7 +4,7 @@ from .. import decode
 
 class TestPZP(TestCase):
     def test_decode_slither(self):
-        (variety, g, layers) = decode('https://puzz.link/p?slither/7/4/01239.g56cgdjah')
+        (variety, g, layers, extra) = decode('https://puzz.link/p?slither/7/4/01239.g56cgdjah')
         self.assertEqual(variety, 'slither')
         self.assertEqual(g.width, 7)
         self.assertEqual(g.height, 4)
@@ -25,9 +25,10 @@ class TestPZP(TestCase):
                 (3, 2, 0),
             ]},
         )
+        self.assertIsNone(extra)
 
     def test_decode_simpleloop(self):
-        (variety, g, layers) = decode('https://puzz.link/p?simpleloop/5/5/o2c1v')
+        (variety, g, layers, extra) = decode('https://puzz.link/p?simpleloop/5/5/o2c1v')
         [shaded] = layers
         self.assertEqual(shaded.name, 'shaded')
         self.assertEqual(
@@ -46,3 +47,4 @@ class TestPZP(TestCase):
                 (4, 4),
             ]},
         )
+        self.assertIsNone(extra)
