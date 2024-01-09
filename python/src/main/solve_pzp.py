@@ -1,8 +1,10 @@
 import argparse
 import sys
 
-from ..solvers import PZP_SOLVERS
+from ..solvers import pzp_solvers
 from ..pzp import decode
+
+PZP_SOLVERS = pzp_solvers()
 
 def solutions(s):
     (variety, g, layers, extra) = decode(s)

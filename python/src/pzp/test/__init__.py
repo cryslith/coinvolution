@@ -33,7 +33,7 @@ class TestPZP(TestCase):
         self.assertEqual(shaded.name, 'shaded')
         self.assertEqual(
             shaded.data,
-            {g[y, x] for (y, x) in [
+            {g[y, x]: True for (y, x) in [
                 (0, 0),
                 (0, 1),
                 (1, 3),

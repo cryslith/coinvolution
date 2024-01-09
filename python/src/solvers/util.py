@@ -1,14 +1,14 @@
 from collections import defaultdict
 from z3 import *
 
-def connectivity(s, vertices, edges, basepoints=None, acylic=False):
+def connectivity(s, vertices, edges, basepoints=None, acyclic=False):
     '''
     Compute connected components of a subgraph of a graph (V, E)
     where the subgraph is given by z3 bools.
 
     s: z3 Solver
     vertices: dict from V to z3 bool for whether each vertex is included in the subgraph
-    edges: dict from E to z3 bool for whether each edge is included in the subgraph.  an edge incident to an inactive vertex will always be considered inactive regardless of its value.
+    edges: dict from tuple pairs (V, V) to z3 bool for whether each edge is included in the subgraph.  an edge incident to an inactive vertex will always be considered inactive regardless of its value.
     basepoints (optional): list of basepoints from which to compute distances.  each connected component will be constrained to have exactly one basepoint.  component identifiers will be assigned in iteration order over the basepoints.  each basepoint will be automatically constrained to be included.
     if basepoints is not provided then component identifiers and basepoints are assigned using iteration order on vertices.
     acyclic (optional): if True, then constrain the subgraph to be acyclic.
@@ -26,14 +26,14 @@ def connectivity(s, vertices, edges, basepoints=None, acylic=False):
     for v, active in vertices.items():
         s.add(Implies(active, And(
             0 <= component[v], component[v] < ncc,
-            0 <= distance[v], distance[v] < n
+            0 <= distance[v], distance[v] < len(vertices),
         )))
         s.add(Implies(Not(active), And(component[v] == -1, distance[v] == -1)))
 
     # edges
     for (u, v), active in edges.items():
-        s.add(Implies(And(vertices[i], vertices[j], active),
-                      component[i] == component[j]))
+        s.add(Implies(And(vertices[u], vertices[v], active),
+                      component[u] == component[v]))
 
     # number of connected components
     s.add(Or(

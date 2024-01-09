@@ -87,10 +87,12 @@ class GMap(ABC):
             yield (path, d)
             for i in a.indices(self.dimension):
                 neighbor = self.alpha(d, i)
+                if neighbor is None:
+                    continue
                 frontier.append((path + (i,), neighbor))
 
     def orbit(self, dart, a):
-        return (d for _, d in self.orbit_paths(a))
+        return (d for _, d in self.orbit_paths(dart, a))
 
     def unique_by_orbit(self, l, a):
         '''
@@ -110,7 +112,7 @@ class GMap(ABC):
     def one_dart_per_orbit(self, a):
         return unique_by_orbit(self.darts(), a)
 
-    def shared_dart_per_incident_orbit(self, dart, a, b):
+    def orbit_incidences(self, dart, a, b):
         '''
         one dart per a-orbit incident to self's b-orbit.
         darts are guaranteed to be in both orbits.
@@ -123,14 +125,7 @@ class GMap(ABC):
         '''Obtain dart's a-rep: the minimum element of dart's a-orbit.'''
         return min(self.orbit(dart, a))
 
-    def vertex(self, dart):
-        return self.rep(dart, Alphas.VERTEX)
-    def edge(self, dart):
-        return self.rep(dart, Alphas.EDGE)
-    def face(self, dart):
-        return self.rep(dart, Alphas.FACE)
-
-    def rep_per_orbit(self, l, a):
+    def unique_rep_per_orbit(self, l, a):
         '''
         returns a-rep of each dart in iterator l.
         only one item is returned for each a-orbit.
@@ -148,10 +143,28 @@ class GMap(ABC):
                 seen.add(n)
             yield b
 
+    def reps(self, a):
+        '''Returns a-rep of each a-orbit'''
+        return self.unique_rep_per_orbit(self.darts(), a)
+
     def rep_per_incident_orbit(self, dart, a, b):
         '''
         a-rep of each a-orbit incident to dart's b-orbit.
 
         a, b: alpha-list
         '''
-        return self.rep_per_orbit(self.orbit(dart, b), a)
+        return self.unique_rep_per_orbit(self.orbit(dart, b), a)
+
+    def vertex(self, dart):
+        return self.rep(dart, Alphas.VERTEX)
+    def edge(self, dart):
+        return self.rep(dart, Alphas.EDGE)
+    def face(self, dart):
+        return self.rep(dart, Alphas.FACE)
+
+    def vertices(self):
+        return self.reps(Alphas.VERTEX)
+    def edges(self):
+        return self.reps(Alphas.EDGE)
+    def faces(self):
+        return self.reps(Alphas.FACE)

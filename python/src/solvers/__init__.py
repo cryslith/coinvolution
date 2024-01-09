@@ -1,18 +1,18 @@
 from abc import ABC, abstractmethod
 
-from . import simpleloop
-
 from z3 import Or, sat
 
-PZP_SOLVERS = {
-    'simpleloop': simpleloop.solve,
-}
+def pzp_solvers():
+    from . import simpleloop
+    return {
+        'simpleloop': simpleloop.S,
+    }
 
-class Solver(ABC):
+class PSolver(ABC):
     @abstractmethod
     def __init__(self, g, layers, extra):
         pass
-        
+
     @property
     @abstractmethod
     def solver(self):
@@ -40,6 +40,5 @@ class Solver(ABC):
         while s.check() == sat:
             m = s.model()
             solution = self.model_to_layers(m)
-            nsols += 1
             yield solution
             s.add(Or([v != m[v] for v in self.vars()]))

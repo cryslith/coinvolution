@@ -35,7 +35,7 @@ def decode(s):
             Layer(
                 'shaded',
                 Alphas.FACE,
-                {g[y, x] for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v},
+                {g[y, x]: True for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v},
             ),
         ]
     else:

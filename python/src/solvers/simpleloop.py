@@ -1,54 +1,49 @@
 from ..gmap import *
+from ..puzzle import Layer
+from . import PSolver
+from .util import connectivity
 
 from z3 import *
 
-def other_face(face, edge):
-    for f in edge.one_dart_per_incident_cell(2, 1):
-        if face not in f.cell(2):
-            return f
+class S(PSolver):
+    solver = None
 
-def solve(g, layers, extra=None):
-    s = Solver()
-    edges = CellDict(1, 2)
-    for e in g.one_dart_per_cell(1):
-        edges[e] = FreshBool()
-        if len(list(e.one_dart_per_incident_cell(2, 1))) != 2:
-            s.add(edges[e] == False)
-    for f in g.one_dart_per_cell(2):
-        s.add(Sum([If(edges[e], 1, 0)
-                   for e in f.one_dart_per_incident_cell(1, 2)]) == 2)
+    def __init__(self, g, layers, extra=None):
+        layers = {l.name: l for l in layers}
+        shaded = layers['shaded'].data
 
-    def connectivity():
-        faces = list(g.one_dart_per_cell(2))
-        root = faces[0]
-        dists = CellDict(2, 2)
-        for f in faces:
-            dists[f] = FreshInt()
-        infinity = len(faces)
-
-        for f in faces:
-            d = dists[f]
-            if f == root:
-                s.add(d == 0)
+        s = Solver()
+        edges = {}
+        for e in g.edges():
+            edges[e] = FreshBool()
+            fs = list(g.rep_per_incident_orbit(e, Alphas.FACE, Alphas.EDGE))
+            if len(fs) < 2 or any(shaded.get(f) for f in fs):
+                s.add(edges[e] == False)
+        for f in g.faces():
+            degree = Sum([If(edges[e], 1, 0)
+                           for e in g.rep_per_incident_orbit(f, Alphas.EDGE, Alphas.FACE)])
+            if shaded.get(f):
+                s.add(degree == 0)
             else:
-                s.add(And([d > 0, d < infinity]))
-                neighbor_dists = [If(edges[e], dists[other_face(f, e)]+1, infinity) for e in f.one_dart_per_incident_cell(1, 2) if other_face(f, e) is not None]
-                s.add(Or([d == n for n in neighbor_dists]))
-                s.add(And([d <= n for n in neighbor_dists]))
-    connectivity()
+                s.add(degree == 2)
 
-    output_edges = CellDict(1, 2)
-    s.check()
-    m = s.model()
-    for e in g.one_dart_per_cell(1):
-        output_edges[e] = bool(m[edges[e]])
+        ncc, _, _ = connectivity(
+            s,
+            {f: not shaded.get(f) for f in g.faces()},
+            {fs: edges[e] for e in g.edges() if len(fs := tuple(g.rep_per_incident_orbit(e, Alphas.FACE, Alphas.EDGE))) == 2},
+        )
+        s.add(ncc == 1)
 
-    return {
-        'layers': [
-            {
-                'name': 'edges',
-                'type': 'enum',
-                'data': output_edges,
-            }
-        ]
-    }
+        self.g = g
+        self.solver = s
+        self.edges = edges
+
+    def vars(self):
+        return self.edges.values()
+
+    def model_to_layers(self, m):
+        output_edges = {}
+        for e in self.g.edges():
+            output_edges[e] = bool(m[self.edges[e]])
+
+        return [Layer('edges', Alphas.EDGE, output_edges)], []
