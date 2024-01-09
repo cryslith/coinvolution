@@ -36,6 +36,18 @@ class Alphas:
             return cls(~(1 << i))
         return cls(((1 << dim+1) - 1) & (0 << i))
 
+    def __members(self):
+        return self.bits
+
+    def __eq__(self, other):
+        if type(other) is type(self):
+            return self.__members() == other.__members()
+        else:
+            return False
+
+    def __hash__(self):
+        return hash(self.__members())
+
 Alphas.VERTEX = Alphas.cell(0)
 Alphas.EDGE = Alphas.cell(1)
 Alphas.FACE = Alphas.cell(2)

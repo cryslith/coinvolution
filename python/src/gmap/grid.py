@@ -44,12 +44,24 @@ class Grid(GMap):
             raise KeyError(k)
         return (y, x, 0)
 
+    def f_loc(self, dart):
+        'location of face'
+        (y, x, _) = dart
+        return (y, x)
+
     def v_loc(self, dart):
         'location of vertex'
         (y, x, i) = dart
         yo = ((i + 1) % 8) // 4
         xo = ((i + 2) % 8) // 4
         return (y + yo, x + xo)
+
+    def e_loc2(self, dart):
+        'location of edge in doubled coordinates'
+        (y, x, i) = dart
+        yo = (0, 0, 1, 1, 2, 2, 1, 1)[i]
+        xo = (1, 1, 2, 2, 1, 1, 0, 0)[i]
+        return (2*y + yo, 2*x + xo)
 
     def e_left(self, y, x):
         return self.edge((y, x, 6))

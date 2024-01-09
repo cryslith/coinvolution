@@ -1,6 +1,6 @@
 from ..gmap import Alphas
 from ..gmap.grid import Grid
-from ..puzzle import Layer
+from ..puzzle import Layer, Display
 
 import re
 from itertools import chain
@@ -25,6 +25,7 @@ def decode(s):
                 'clues',
                 Alphas.FACE,
                 {g[y, x]: v for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v >= 0},
+                Display.text,
             ),
         ]
     elif variety == 'simpleloop':
@@ -35,7 +36,8 @@ def decode(s):
             Layer(
                 'shaded',
                 Alphas.FACE,
-                {g[y, x]: True for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v},
+                {g[y, x]: int(v) for (y, r) in enumerate(decoded) for (x, v) in enumerate(r)},
+                Display.surface,
             ),
         ]
     else:
