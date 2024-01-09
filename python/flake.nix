@@ -16,6 +16,7 @@
         src = ./.;
         pyproject = true;
         nativeBuildInputs = [ ps.hatchling ];
+        propagatedBuildInputs = python-dependencies ps;
         pythonImportsCheck = [ pname ];
       }
     )) pkgs.python3Packages;
@@ -23,13 +24,12 @@
     packages.${system}.default = coinvolution-py;
     apps.${system}.solve-pzp = {
       type = "app";
-      program = coinvolution-py.outputs.out.path + "/bin/solve-pzp";
+      program = "${coinvolution-py}/bin/solve-pzp";
     };
     devShells.${system}.default = pkgs.mkShell {
       packages = [
-        (pkgs.python3.withPackages (ps: (
-          (python-dependencies ps) ++ [ coinvolution-py ]
-        )))
+        # use this instead of loading coinvolution-py directly so z3 is in the path for the dev shell
+        (pkgs.python3.withPackages (ps: [ coinvolution-py ]))
       ];
     };
   };
