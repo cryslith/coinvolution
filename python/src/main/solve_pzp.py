@@ -15,6 +15,7 @@ def solutions(s):
 def main():
     p = argparse.ArgumentParser(description='Solve a puzzle from a puzz.link url.', epilog='Supported varieties:\n' + '\n'.join(PZP_SOLVERS.keys()))
     p.add_argument('url', help='puzz.link url')
+    p.add_argument('-a', '--ascii', action='store_true')
     args = p.parse_args()
 
     (variety, g, layers, extra) = decode(args.url)
@@ -23,7 +24,7 @@ def main():
 
     for (i, (sol_layers, sol_extra)) in enumerate(solver.solutions()):
         print(f'solution {i}:')
-        print(draw_grid(g, layers + sol_layers))
+        print(draw_grid(g, layers + sol_layers, args.ascii))
         if sol_extra is not None:
             print(sol_extra)
         print()
