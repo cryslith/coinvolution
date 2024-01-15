@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-Display = Enum('Display', ['text', 'line', 'surface'])
+Display = Enum('Display', ['text', 'surface', 'line', 'edge', 'wall', 'arrow'])
 
 class Layer:
     def __init__(self, name, alphas, data, display=None):

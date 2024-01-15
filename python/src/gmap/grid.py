@@ -2,6 +2,14 @@ from . import GMap
 
 import itertools
 
+
+def face_arg(f):
+    def g(self, *args):
+        if len(args) == 1 and len(args[0]) == 3:
+            return f(self, *args[0][:2])
+        return f(self, *args)
+    return g
+
 class Grid(GMap):
     dimension = 2
 
@@ -38,10 +46,20 @@ class Grid(GMap):
             return None
         raise ValueError
 
+    def __contains__(self, k):
+        return self.get(k) is not None
+
     def __getitem__(self, k):
         (y, x) = k
-        if not self.has_square(y, x):
+        v = self.get(k)
+        if v is None:
             raise KeyError(k)
+        return v
+
+    def get(self, k, default=None):
+        (y, x) = k
+        if not self.has_square(y, x):
+            return default
         return (y, x, 0)
 
     def f_loc(self, dart):
@@ -63,20 +81,28 @@ class Grid(GMap):
         xo = (1, 1, 2, 2, 1, 1, 0, 0)[i]
         return (2*y + yo, 2*x + xo)
 
+    @face_arg
     def e_left(self, y, x):
         return self.edge((y, x, 6))
+    @face_arg
     def e_right(self, y, x):
         return self.edge((y, x, 2))
+    @face_arg
     def e_top(self, y, x):
         return self.edge((y, x, 0))
+    @face_arg
     def e_bottom(self, y, x):
         return self.edge((y, x, 4))
+    @face_arg
     def v_tl(self, y, x):
         return self.vertex((y, x, 0))
+    @face_arg
     def v_tr(self, y, x):
         return self.vertex((y, x, 2))
+    @face_arg
     def v_bl(self, y, x):
         return self.vertex((y, x, 6))
+    @face_arg
     def v_br(self, y, x):
         return self.vertex((y, x, 4))
 

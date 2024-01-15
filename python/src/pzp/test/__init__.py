@@ -48,3 +48,7 @@ class TestPZP(TestCase):
             ]},
         )
         self.assertIsNone(extra)
+
+    def test_decode_yajilin(self):
+        (variety, g, layers, extra) = decode('https://puzz.link/p?yajilin/b/40/6/4132a23a10zh0.a0.0.a00zi01a02a03zh511zm912zzza'.replace('/b', '')) # todo support this b thingy
+        # todo

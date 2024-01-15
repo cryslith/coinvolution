@@ -6,7 +6,7 @@ import re
 from itertools import chain
 
 def decode(s):
-    m = re.match(r'(.*?p\?)?(.*?)/(.*?)/(.*?)/(.*)', s)
+    m = re.match(r'(.*?p\?)?(.*?)/(.*?)/(.*?)/(.*)', s) # todo change this to url decoding, strip off trailing slash
     if m is None:
         raise ValueError
     variety = m.group(2)
@@ -38,6 +38,28 @@ def decode(s):
                 Alphas.FACE,
                 {g[y, x]: int(v) for (y, r) in enumerate(decoded) for (x, v) in enumerate(r)},
                 Display.surface,
+            ),
+        ]
+    elif variety == 'yajilin':
+        (decoded, data) = decode_arrow_number_16(height, width, data)
+        if data:
+            print(decoded, data)
+            raise ValueError('extra data')
+        data = {g[y, x]: v for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v != -1}
+        clues = {f: n for f, (d, n) in data.items() if d == 0}
+        clues_arrow = {fe_arrow(y, x, d): n for (y, x, _), (d, n) in data.items() if d != 0}
+        layers = [
+            Layer(
+                'clues',
+                Alphas.FACE,
+                clues,
+                Display.text,
+            ),
+            Layer(
+                'clues_arrow',
+                Alphas.SIDE,
+                clues_arrow,
+                # todo composite display
             ),
         ]
     else:
@@ -91,3 +113,47 @@ def decode_binary(height, width, data):
         raise ValueError(f"decoded length {len(r)} doesn't match dimensions {width=} {height=}")
 
     return [r[i:i+width] for i in range(0, width*height, width)], data[rem:]
+
+def decode_arrow_number_16(height, width, data):
+    r = []
+    skip = 0
+    for (i, c) in enumerate(data):
+        if skip > 0:
+            skip -= 1
+            continue
+        if len(r) >= width * height:
+            break
+        if '0' <= c <= '4':
+            direction = int(c, 16)
+            num = None if data[i+1] == '.' else int(data[i+1], 16)
+            skip = 1
+            r.append((direction, num))
+            continue
+        if '5' <= c <= '9':
+            direction = int(c, 16) - 5
+            num = int(data[i+1:i+2], 16)
+            skip = 2
+            r.append((direction, num))
+            continue
+        if 'a' <= c <= 'z':
+            r.extend([-1] * (int(c, 36) - 9))
+            continue
+        raise ValueError(f'unrecognized character {c}')
+    else:
+        i += 1
+
+    if len(r) != width * height:
+        raise ValueError(f"decoded length {len(r)} doesn't match dimensions {width=} {height=}")
+
+    return [r[j:j+width] for j in range(0, width*height, width)], data[i:]
+
+def fe_arrow(y, x, direction):
+    if direction == 1: # up
+        return (y, x, 0)
+    if direction == 2: # down
+        return (y, x, 4)
+    if direction == 3: # left
+        return (y, x, 6)
+    if direction == 4: # right
+        return (y, x, 2)
+    raise ValueError(f'invalid {direction=}')

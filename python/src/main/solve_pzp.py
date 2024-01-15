@@ -22,11 +22,12 @@ def main():
     print(f'{g.width}*{g.height} {variety}')
     solver = PZP_SOLVERS[variety](g, layers, extra)
 
-    for (i, (sol_layers, sol_extra)) in enumerate(solver.solutions()):
+    i = 0
+    for (sol_layers, sol_extra) in solver.solutions():
         print(f'solution {i}:')
         print(draw_grid(g, layers + sol_layers, args.ascii))
         if sol_extra is not None:
             print(sol_extra)
         print()
-
-    print(f'total {i+1}')
+        i += 1
+    print(f'total {i}')

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import itertools
 
 from z3 import Or, sat, IntNumRef, BoolRef
 
@@ -38,12 +39,16 @@ class Z3Solver(PSolver):
         iterator over all solution variables
         '''
 
-    def z3_to_py(self, x):
+    def z3_to_py(self, v, x):
         if isinstance(x, IntNumRef):
             return x.as_long()
         if isinstance(x, BoolRef):
             return bool(x)
-        raise TypeError
+        if x is None:
+            if isinstance(v, BoolRef):
+                return None
+            raise TypeError(f'unconstrained non-boolean variable {v}')
+        raise TypeError(f"can't handle object {repr(x)}")
 
     @abstractmethod
     def model_to_layers(self, model):
@@ -58,9 +63,12 @@ class Z3Solver(PSolver):
         undefined behavior if multiple solution iterators are created.
         '''
         s = self.solver
+        V = list(self.vars())
         while s.check() == sat:
             m = s.model()
-            m2 = {v: self.z3_to_py(m[v]) for v in self.vars()}
-            solution = self.model_to_layers(m2)
-            yield solution
-            s.add(Or([v != m2[v] for v in self.vars()]))
+            vals = [self.z3_to_py(v, m[v]) for v in V]
+            for ml in itertools.product(*([False, True] if val is None else [val] for val in vals)):
+                m2 = {k: v for (k, v) in zip(V, ml)}
+                solution = self.model_to_layers(m2)
+                yield solution
+            s.add(Or([v != val for v, val in zip(V, vals) if val is not None]))
