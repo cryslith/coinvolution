@@ -53,7 +53,7 @@ class Z3Solver(PSolver):
     @abstractmethod
     def model_to_layers(self, model):
         '''
-        return (solution layers, solution extra)
+        return (solution layers, solution extra) from model.  model may be incomplete, indicating unknown variables.
         '''
 
     def solutions(self):
@@ -67,8 +67,50 @@ class Z3Solver(PSolver):
         while s.check() == sat:
             m = s.model()
             vals = [self.z3_to_py(v, m[v]) for v in V]
-            for ml in itertools.product(*([False, True] if val is None else [val] for val in vals)):
-                m2 = {k: v for (k, v) in zip(V, ml)}
+            for ml in itertools.product(*([False, True] if x is None else [x] for x in vals)):
+                m2 = {v: x for (v, x) in zip(V, ml)}
                 solution = self.model_to_layers(m2)
                 yield solution
-            s.add(Or([v != val for v, val in zip(V, vals) if val is not None]))
+            s.add(Or([v != x for v, x in zip(V, vals) if x is not None]))
+
+    def forced_variables(self):
+        '''
+        find all variables whose values are forced by the constraints
+        '''
+        s = self.solver
+        V = list(self.vars())
+        forced_vars = None
+        while s.check() == sat:
+            m = s.model()
+            m2 = {v: self.z3_to_py(v, m[v]) for v in self.vars()}
+            if forced_vars is None:
+                forced_vars = {v: x for v, x in m2.items() if x is not None}
+            else:
+                f = list(forced_vars)
+                for v in f:
+                    if forced_vars[v] != m2[v]:
+                        del forced_vars[v]
+            s.add(Or([v != x for v, x in m2.items() if x is not None]))
+        return self.model_to_layers(forced_vars)
+
+    def _forced_variables_slow(self):
+        '''
+        find all variables whose values are forced by the constraints
+        '''
+        # in practice this implementation seems to be way slower than just enumerating all solutions.
+        s = self.solver
+        if s.check() != sat:
+            return unsat
+        m = s.model()
+        m2 = {v: self.z3_to_py(v, m[v]) for v in self.vars()}
+        forced_vars = {}
+        for v in self.vars():
+            if m2[v] is None:
+                continue
+            s.push()
+            s.add(v != m2[v])
+            forced = s.check() == unsat
+            s.pop()
+            if forced:
+                forced_vars[v] = m2[v]
+        return self.model_to_layers(forced_vars)

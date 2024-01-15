@@ -34,3 +34,5 @@ class TestSolvePZP(TestCase):
                 (3, 2),
             ]}
         )
+
+    # todo test forced vars computation
