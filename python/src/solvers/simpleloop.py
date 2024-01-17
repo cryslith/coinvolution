@@ -42,8 +42,5 @@ class S(Z3Solver):
         return self.edges.values()
 
     def model_to_layers(self, m):
-        output_edges = {}
-        for e in self.g.edges():
-            output_edges[e] = 1 if m[self.edges[e]] else 0
-
+        output_edges = {e: 1 if m[self.edges[e]] else 0 for e in self.g.edges() if self.edges[e] in m}
         return [Layer('edges', Alphas.EDGE, output_edges, Display.line)], None

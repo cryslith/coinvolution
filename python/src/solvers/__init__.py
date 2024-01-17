@@ -61,43 +61,37 @@ class Z3Solver(PSolver):
         iterator over all solutions.
 
         undefined behavior if multiple solution iterators are created.
-        '''
-        s = self.solver
-        V = list(self.vars())
-        while s.check() == sat:
-            m = s.model()
-            vals = [self.z3_to_py(v, m[v]) for v in V]
-            for ml in itertools.product(*([False, True] if x is None else [x] for x in vals)):
-                m2 = {v: x for (v, x) in zip(V, ml)}
-                solution = self.model_to_layers(m2)
-                yield solution
-            s.add(Or([v != x for v, x in zip(V, vals) if x is not None]))
-
-    def forced_variables(self):
-        '''
-        find all variables whose values are forced by the constraints
+        sets self.forced_variables when all solutions are fully consumed
         '''
         s = self.solver
         V = list(self.vars())
         forced_vars = None
         while s.check() == sat:
             m = s.model()
-            m2 = {v: self.z3_to_py(v, m[v]) for v in self.vars()}
+            m_ = {v: self.z3_to_py(v, m[v]) for v in V}
             if forced_vars is None:
-                forced_vars = {v: x for v, x in m2.items() if x is not None}
+                forced_vars = {v: x for v, x in m_.items() if x is not None}
             else:
                 f = list(forced_vars)
                 for v in f:
-                    if forced_vars[v] != m2[v]:
-                        del forced_vars[v]
-            s.add(Or([v != x for v, x in m2.items() if x is not None]))
-        return self.model_to_layers(forced_vars)
+                    if forced_vars[v] != m_[v]:
+                        del forced_vars[v]                
+            val_list = [m_[v] for v in V]
+            for ml in itertools.product(*([False, True] if x is None else [x] for x in val_list)):
+                m2 = {v: x for (v, x) in zip(V, ml)}
+                solution = self.model_to_layers(m2)
+                yield solution
+            s.add(Or([v != x for v, x in m_.items() if x is not None]))
+        self.forced_variables = self.model_to_layers(forced_vars)
 
     def _forced_variables_slow(self):
         '''
         find all variables whose values are forced by the constraints
         '''
         # in practice this implementation seems to be way slower than just enumerating all solutions.
+        # can be improved by:
+        # - adding persistent constraints for known-forced variables
+        # - detecting early when a variable is not forced because of a different solution
         s = self.solver
         if s.check() != sat:
             return unsat
