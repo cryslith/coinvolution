@@ -91,6 +91,6 @@ def connectivity(s, vertices, edges, basepoints=None, acyclic=False):
             s.add(Implies(
                 distance[u] > 0,
                 Sum([If(And(active, distance[v] <= distance[u]), 1, 0)
-                     for v, active in neighbors[u]] == 1)))
+                     for v, active in neighbors[u]]) == 1))
 
     return ncc, component, distance

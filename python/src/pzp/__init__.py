@@ -24,7 +24,7 @@ def decode(s):
             Layer(
                 'clues',
                 Alphas.FACE,
-                {g[y, x]: v for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v >= 0},
+                {g[y, x]: v for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v is not None and v != '?'},
                 Display.text,
             ),
         ]
@@ -43,9 +43,8 @@ def decode(s):
     elif variety == 'yajilin':
         (decoded, data) = decode_arrow_number_16(height, width, data)
         if data:
-            print(decoded, data)
             raise ValueError('extra data')
-        data = {g[y, x]: v for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v != -1}
+        data = {g[y, x]: v for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v is not None}
         clues = {f: n for f, (d, n) in data.items() if d == 0}
         clues_arrow = {fe_arrow(y, x, d): n for (y, x, _), (d, n) in data.items() if d != 0}
         layers = [
@@ -62,6 +61,18 @@ def decode(s):
                 # todo composite display
             ),
         ]
+    elif variety == 'numlin':
+        (decoded, data) = decode_number_16(height, width, data)
+        if data:
+            raise ValueError('extra data')
+        layers = [
+            Layer(
+                'clues',
+                Alphas.FACE,
+                {g[y, x]: v for (y, r) in enumerate(decoded) for (x, v) in enumerate(r) if v is not None},
+                Display.text,
+            ),
+        ]
     else:
         raise ValueError(f'unknown variety {variety}')
     return (variety, g, layers, extra)
@@ -76,17 +87,17 @@ def decode_4cell(height, width, data):
             continue
         if '5' <= c <= '9':
             r.append(int(c, 16) - 5)
-            r.append(-1)
+            r.append(None)
             continue
         if 'a' <= c <= 'e':
             r.append(int(c, 16) - 10)
-            r.extend([-1, -1])
+            r.extend([None, None])
             continue
         if 'g' <= c <= 'z':
-            r.extend([-1] * (int(c, 36) - 15))
+            r.extend([None] * (int(c, 36) - 15))
             continue
         if c == '.':
-            r.append(-2)
+            r.append('?')
             continue
         raise ValueError(f'unrecognized character {c}')
     else:
@@ -96,6 +107,43 @@ def decode_4cell(height, width, data):
         raise ValueError(f"decoded length {len(r)} doesn't match dimensions {width=} {height=}")
 
     return [r[i:i+width] for i in range(0, width*height, width)], data[rem:]
+
+def read_number_16(data):
+    c = data[0]
+    if '0' <= c <= '9' or 'a' <= c <= 'f':
+        return int(c, 16), 1
+    if c == '-':
+        return int(data[1:3], 16), 3
+    if c == '+':
+        return int(data[1:4], 16), 4
+    if c == '=':
+        return int(data[1:4], 16) + 4096, 4
+    if c in '%@':
+        return int(data[1:4], 16) + 8192, 4
+    if c == '*':
+        return int(data[1:5], 16) + 12240, 5
+    if c == '$':
+        return int(data[1:6], 16) + 77776, 6
+    if c == '.':
+        return '?', 1
+    raise ValueError
+
+def decode_number_16(height, width, data):
+    r = []
+    i = 0
+    while len(r) < width * height:
+        if 'g' <= data[0] <= 'z':
+            r.extend([None] * (int(data[0], 36) - 15))
+            data = data[1:]
+            continue
+        d, n = read_number_16(data)
+        r.append(d)
+        data = data[n:]
+
+    if len(r) != width * height:
+        raise ValueError(f"decoded length {len(r)} doesn't match dimensions {width=} {height=}")
+
+    return [r[i:i+width] for i in range(0, width*height, width)], data
 
 def decode_binary(height, width, data):
     r = []
@@ -136,7 +184,7 @@ def decode_arrow_number_16(height, width, data):
             r.append((direction, num))
             continue
         if 'a' <= c <= 'z':
-            r.extend([-1] * (int(c, 36) - 9))
+            r.extend([None] * (int(c, 36) - 9))
             continue
         raise ValueError(f'unrecognized character {c}')
     else:

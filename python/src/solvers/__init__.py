@@ -4,9 +4,10 @@ import itertools
 from z3 import Or, sat, IntNumRef, BoolRef
 
 def pzp_solvers():
-    from . import simpleloop
+    from . import simpleloop, numberlink
     return {
         'simpleloop': simpleloop.S,
+        'numlin': numberlink.S,
     }
 
 class PSolver(ABC):
